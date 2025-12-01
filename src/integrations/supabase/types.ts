@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      photo_logs: {
+        Row: {
+          captured_at: string | null
+          created_at: string
+          extracted_text: string | null
+          id: string
+          image_url: string
+          latitude: number | null
+          longitude: number | null
+          updated_at: string
+          user_id: string
+          utm_raw: string | null
+        }
+        Insert: {
+          captured_at?: string | null
+          created_at?: string
+          extracted_text?: string | null
+          id?: string
+          image_url: string
+          latitude?: number | null
+          longitude?: number | null
+          updated_at?: string
+          user_id: string
+          utm_raw?: string | null
+        }
+        Update: {
+          captured_at?: string | null
+          created_at?: string
+          extracted_text?: string | null
+          id?: string
+          image_url?: string
+          latitude?: number | null
+          longitude?: number | null
+          updated_at?: string
+          user_id?: string
+          utm_raw?: string | null
+        }
+        Relationships: []
+      }
       photos: {
         Row: {
           accuracy: number | null
