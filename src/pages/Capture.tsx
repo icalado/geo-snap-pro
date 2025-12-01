@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Camera, ArrowLeft, MapPin, Loader2 } from 'lucide-react';
+import { Camera, ArrowLeft, MapPin, Loader2, Wifi, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { savePendingPhoto } from '@/lib/offlineStorage';
+import { useOfflineSync } from '@/hooks/useOfflineSync';
 
 export default function Capture() {
   const navigate = useNavigate();
@@ -22,6 +24,7 @@ export default function Capture() {
   const [isSaving, setIsSaving] = useState(false);
   const [notes, setNotes] = useState('');
   const [coords, setCoords] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
+  const { isOnline, isSyncing, pendingCount, checkPendingCount } = useOfflineSync(user?.id);
 
   useEffect(() => {
     loadProjects();
@@ -133,7 +136,32 @@ export default function Capture() {
 
       if (!blob) throw new Error('Failed to create image blob');
 
-      // Upload to storage
+      // Check if online
+      if (!isOnline) {
+        // Save to IndexedDB for later sync
+        await savePendingPhoto({
+          id: `${Date.now()}-${Math.random()}`,
+          user_id: user!.id,
+          project_id: selectedProject,
+          blob,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          accuracy: coords.accuracy,
+          altitude: null,
+          notes: notes || null,
+          timestamp: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        });
+
+        toast.success('Foto salva localmente! Será sincronizada quando houver conexão.');
+        setNotes('');
+        getCurrentLocation();
+        await checkPendingCount();
+        setIsSaving(false);
+        return;
+      }
+
+      // Upload to storage (online mode)
       const fileName = `${user!.id}/${selectedProject}/${Date.now()}.jpg`;
       const { error: uploadError } = await supabase.storage
         .from('photos')
@@ -180,9 +208,24 @@ export default function Capture() {
           <Button variant="ghost" size="icon" onClick={() => navigate('/home')}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-xl font-bold">Capturar Foto</h1>
             <p className="text-xs text-muted-foreground">Com geolocalização automática</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {isOnline ? (
+              <Wifi className="w-5 h-5 text-green-500" />
+            ) : (
+              <WifiOff className="w-5 h-5 text-orange-500" />
+            )}
+            {pendingCount > 0 && (
+              <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full">
+                {pendingCount}
+              </span>
+            )}
+            {isSyncing && (
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            )}
           </div>
         </div>
       </header>
