@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { savePendingPhoto } from '@/lib/offlineStorage';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import TestExifExtraction from '@/components/TestExifExtraction';
+import FieldPhotoUpload from '@/components/FieldPhotoUpload';
 
 export default function Capture() {
   const navigate = useNavigate();
@@ -371,6 +372,9 @@ export default function Capture() {
             />
           </CardContent>
         </Card>
+
+        {/* Field Photo Upload with OCR */}
+        <FieldPhotoUpload projects={projects} onUploadComplete={loadProjects} />
 
         {/* Test EXIF Extraction */}
         <TestExifExtraction />
