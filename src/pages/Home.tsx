@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -6,6 +7,7 @@ import { MapPin, Camera, FolderOpen, LogOut, Leaf } from 'lucide-react';
 
 const Home = () => {
   const { user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const getUserInitials = () => {
     if (!user?.user_metadata?.name) return 'U';
@@ -58,7 +60,7 @@ const Home = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="default">
+              <Button className="w-full" variant="default" onClick={() => navigate('/capture')}>
                 Abrir Câmera
               </Button>
             </CardContent>
