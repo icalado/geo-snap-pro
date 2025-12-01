@@ -35,6 +35,7 @@ export default function Gallery() {
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isOnline, isSyncing, pendingCount } = useOfflineSync(user?.id);
 
@@ -111,18 +112,28 @@ export default function Gallery() {
     }
 
     setIsImporting(true);
+    setImportProgress({ current: 0, total: files.length });
     let successCount = 0;
     let errorCount = 0;
 
+    toast.info(`Iniciando importação de ${files.length} foto(s)...`);
+
+    // Process files one by one to avoid overwhelming the browser
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      setImportProgress({ current: i + 1, total: files.length });
       
       try {
-        // Extract GPS data from EXIF
-        const geoData = await extractGeoFromImage(file);
+        // Extract GPS data from EXIF with timeout
+        const geoDataPromise = extractGeoFromImage(file);
+        const timeoutPromise = new Promise<null>((resolve) => 
+          setTimeout(() => resolve(null), 10000) // 10 second timeout
+        );
+        
+        const geoData = await Promise.race([geoDataPromise, timeoutPromise]);
 
         if (!geoData) {
-          toast.error(`Foto ${file.name}: sem dados de localização`);
+          console.log(`Photo ${i + 1}: No GPS data or timeout`);
           errorCount++;
           continue;
         }
@@ -136,7 +147,10 @@ export default function Gallery() {
             upsert: false,
           });
 
-        if (uploadError) throw uploadError;
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          throw uploadError;
+        }
 
         // Get public URL
         const { data: { publicUrl } } = supabase.storage
@@ -154,7 +168,10 @@ export default function Gallery() {
           timestamp: geoData.datetime || new Date().toISOString(),
         });
 
-        if (dbError) throw dbError;
+        if (dbError) {
+          console.error('Database error:', dbError);
+          throw dbError;
+        }
 
         successCount++;
       } catch (error) {
@@ -164,13 +181,14 @@ export default function Gallery() {
     }
 
     setIsImporting(false);
+    setImportProgress({ current: 0, total: 0 });
     
     if (successCount > 0) {
       toast.success(`${successCount} foto(s) importada(s) com sucesso!`);
       loadPhotos();
     }
     if (errorCount > 0) {
-      toast.error(`Falha ao importar ${errorCount} foto(s)`);
+      toast.error(`${errorCount} foto(s) não puderam ser importadas (sem GPS ou erro)`);
     }
 
     // Reset file input
@@ -228,7 +246,7 @@ export default function Gallery() {
               {isImporting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Importando...
+                  {importProgress.current}/{importProgress.total}
                 </>
               ) : (
                 <>
