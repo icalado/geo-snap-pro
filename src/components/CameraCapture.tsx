@@ -73,8 +73,11 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
         return;
       }
 
+      // Convert Blob to File for EXIF extraction
+      const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
+
       toast.info('Extracting geolocation data...');
-      const geoData = await extractGeoFromImage(blob);
+      const geoData = await extractGeoFromImage(file);
       
       if (geoData) {
         toast.success('Photo captured with geolocation!');

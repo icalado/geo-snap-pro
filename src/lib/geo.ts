@@ -21,38 +21,82 @@ function convertGPSCoordinate(coord: any[], ref: string): number | null {
   return Number(decimal.toFixed(6));
 }
 
-export function extractGeoFromImage(blob: Blob): Promise<GeoData | null> {
+export function extractGeoFromImage(file: File): Promise<GeoData | null> {
   return new Promise((resolve) => {
-    EXIF.getData(blob as any, function(this: any) {
-      const tags = EXIF.getAllTags(this);
-      
-      if (!tags || !tags.GPSLatitude || !tags.GPSLongitude) {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      const arrayBuffer = e.target?.result;
+      if (!arrayBuffer) {
+        console.error('Failed to read file');
         resolve(null);
         return;
       }
+
+      // Create a temporary image element to extract EXIF data
+      const img = new Image();
+      const blob = new Blob([arrayBuffer], { type: file.type });
+      const url = URL.createObjectURL(blob);
       
-      const lat = convertGPSCoordinate(tags.GPSLatitude, tags.GPSLatitudeRef);
-      const lon = convertGPSCoordinate(tags.GPSLongitude, tags.GPSLongitudeRef);
-      
-      if (lat === null || lon === null) {
-        resolve(null);
-        return;
-      }
-      
-      const alt = tags.GPSAltitude || 'N/A';
-      const datetime = tags.DateTimeOriginal || tags.DateTime || null;
-      
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        resolve({
-          lat,
-          lon,
-          alt,
-          datetime,
-          imgDataURL: e.target?.result as string,
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        
+        EXIF.getData(img as any, function(this: any) {
+          const tags = EXIF.getAllTags(this);
+          
+          console.log('EXIF Tags:', tags);
+          
+          if (!tags || !tags.GPSLatitude || !tags.GPSLongitude) {
+            console.error('No GPS data found in image');
+            resolve(null);
+            return;
+          }
+          
+          const lat = convertGPSCoordinate(tags.GPSLatitude, tags.GPSLatitudeRef);
+          const lon = convertGPSCoordinate(tags.GPSLongitude, tags.GPSLongitudeRef);
+          
+          if (lat === null || lon === null) {
+            console.error('Failed to convert GPS coordinates');
+            resolve(null);
+            return;
+          }
+          
+          console.log('Extracted GPS:', { lat, lon });
+          
+          const alt = tags.GPSAltitude 
+            ? (tags.GPSAltitude.numerator / tags.GPSAltitude.denominator) 
+            : 'N/A';
+          const datetime = tags.DateTimeOriginal || tags.DateTime || null;
+          
+          // Convert the file to data URL for storage
+          const dataUrlReader = new FileReader();
+          dataUrlReader.onload = (event) => {
+            resolve({
+              lat,
+              lon,
+              alt,
+              datetime,
+              imgDataURL: event.target?.result as string,
+            });
+          };
+          dataUrlReader.readAsDataURL(file);
         });
       };
-      reader.readAsDataURL(blob);
-    });
+      
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        console.error('Failed to load image');
+        resolve(null);
+      };
+      
+      img.src = url;
+    };
+    
+    reader.onerror = () => {
+      console.error('Failed to read file as ArrayBuffer');
+      resolve(null);
+    };
+    
+    reader.readAsArrayBuffer(file);
   });
 }
