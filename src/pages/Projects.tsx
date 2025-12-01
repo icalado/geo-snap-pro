@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Edit, Trash2, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Project {
@@ -313,6 +313,14 @@ export default function Projects() {
                       </p>
                     </div>
                     <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => navigate(`/projects/${project.id}/map`)}
+                        title="Ver no Mapa"
+                      >
+                        <MapPin className="w-4 h-4" />
+                      </Button>
                       <Button
                         variant="outline"
                         size="icon"

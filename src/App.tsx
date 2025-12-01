@@ -12,6 +12,7 @@ import Capture from "./pages/Capture";
 import Projects from "./pages/Projects";
 import Gallery from "./pages/Gallery";
 import Reports from "./pages/Reports";
+import ProjectMap from "./pages/ProjectMap";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,14 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Projects />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/projects/:projectId/map"
+              element={
+                <ProtectedRoute>
+                  <ProjectMap />
                 </ProtectedRoute>
               }
             />
