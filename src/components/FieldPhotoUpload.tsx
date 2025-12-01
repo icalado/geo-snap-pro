@@ -4,10 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Upload, Loader2, AlertCircle, CheckCircle2, Image as ImageIcon } from 'lucide-react';
+import { Upload, Loader2, AlertCircle, CheckCircle2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import Tesseract from 'tesseract.js';
 
@@ -16,92 +15,136 @@ interface FieldPhotoUploadProps {
   onUploadComplete?: () => void;
 }
 
+type FileStatus = 'waiting' | 'scanning' | 'uploading' | 'done' | 'error';
+
+interface PhotoFile {
+  file: File;
+  previewUrl: string;
+  status: FileStatus;
+  extractedText?: string;
+  utmCoords?: { zone: string; easting: string; northing: string };
+  errorMessage?: string;
+}
+
 export default function FieldPhotoUpload({ projects, onUploadComplete }: FieldPhotoUploadProps) {
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [selectedProject, setSelectedProject] = useState<string>('');
-  const [notes, setNotes] = useState('');
+  const [photoFiles, setPhotoFiles] = useState<PhotoFile[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string>('');
-  const [extractedText, setExtractedText] = useState<string>('');
-  const [utmCoords, setUtmCoords] = useState<{ zone: string; easting: string; northing: string } | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleFileSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    event.preventDefault();
+    
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
 
-    // Feedback visual imediato
-    setIsProcessing(true);
-    setSelectedFile(file);
-    setExtractedText('');
-    setUtmCoords(null);
+    // Create preview URLs for all selected files
+    const newPhotoFiles: PhotoFile[] = files.map((file) => ({
+      file,
+      previewUrl: URL.createObjectURL(file),
+      status: 'waiting' as FileStatus,
+    }));
 
-    try {
-      // Criar preview da imagem
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result as string);
+    setPhotoFiles(newPhotoFiles);
+    toast.success(`${files.length} foto(s) selecionada(s)`);
+  };
+
+  const removePhoto = (index: number) => {
+    setPhotoFiles((prev) => {
+      const updated = [...prev];
+      URL.revokeObjectURL(updated[index].previewUrl);
+      updated.splice(index, 1);
+      return updated;
+    });
+  };
+
+  const updatePhotoStatus = (index: number, updates: Partial<PhotoFile>) => {
+    setPhotoFiles((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], ...updates };
+      return updated;
+    });
+  };
+
+  const processPhotoOCR = async (file: File): Promise<{ 
+    extractedText: string; 
+    utmCoords?: { zone: string; easting: string; northing: string } 
+  }> => {
+    // Extract text with Tesseract
+    const { data } = await Tesseract.recognize(file, 'por', {
+      logger: (m) => {
+        if (m.status === 'recognizing text') {
+          console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
+        }
+      },
+    });
+
+    const extractedText = data.text;
+
+    // Regex for UTM coordinates: "23K 324621 7364981"
+    const utmRegex = /(\d{1,2}[A-Z])\s+(\d{6,7})\s+(\d{6,7})/i;
+    const match = extractedText.match(utmRegex);
+
+    let utmCoords;
+    if (match) {
+      utmCoords = {
+        zone: match[1],
+        easting: match[2],
+        northing: match[3],
       };
-      reader.readAsDataURL(file);
+    }
 
-      toast.info('Processando imagem...', {
-        icon: <Loader2 className="w-4 h-4 animate-spin" />,
+    return { extractedText, utmCoords };
+  };
+
+  const uploadPhotoToStorage = async (file: File): Promise<string> => {
+    const fileName = `${user!.id}/${Date.now()}_${file.name}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from('field-photos')
+      .upload(fileName, file, {
+        contentType: file.type,
+        upsert: false,
       });
 
-      // Extrair texto com Tesseract
-      const { data } = await Tesseract.recognize(file, 'por', {
-        logger: (m) => {
-          if (m.status === 'recognizing text') {
-            console.log(`Progresso OCR: ${Math.round(m.progress * 100)}%`);
-          }
-        },
-      });
+    if (uploadError) {
+      throw new Error(`Upload error: ${uploadError.message}`);
+    }
 
-      const extractedFullText = data.text;
-      setExtractedText(extractedFullText);
+    const { data: { publicUrl } } = supabase.storage
+      .from('field-photos')
+      .getPublicUrl(fileName);
 
-      console.log('Texto extraído:', extractedFullText);
+    return publicUrl;
+  };
 
-      // Regex para coordenadas UTM no formato: "23K 324621 7364981"
-      // Formato: zona (número + letra), easting (6-7 dígitos), northing (6-7 dígitos)
-      const utmRegex = /(\d{1,2}[A-Z])\s+(\d{6,7})\s+(\d{6,7})/i;
-      const match = extractedFullText.match(utmRegex);
+  const savePhotoToDatabase = async (
+    imageUrl: string,
+    extractedText: string,
+    utmCoords?: { zone: string; easting: string; northing: string }
+  ) => {
+    const photoLogData = {
+      user_id: user!.id,
+      image_url: imageUrl,
+      extracted_text: extractedText || null,
+      utm_raw: utmCoords ? `${utmCoords.zone} ${utmCoords.easting} ${utmCoords.northing}` : null,
+      latitude: null,
+      longitude: null,
+      captured_at: new Date().toISOString(),
+    };
 
-      if (match) {
-        const coords = {
-          zone: match[1],
-          easting: match[2],
-          northing: match[3],
-        };
-        setUtmCoords(coords);
-        toast.success('Coordenadas UTM encontradas!', {
-          description: `${coords.zone} ${coords.easting} ${coords.northing}`,
-          icon: <CheckCircle2 className="w-4 h-4" />,
-        });
-      } else {
-        toast.warning('Coordenadas UTM não encontradas', {
-          description: 'A foto será salva sem coordenadas',
-          icon: <AlertCircle className="w-4 h-4" />,
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao processar imagem:', error);
-      toast.error('Erro ao processar imagem', {
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-      });
-    } finally {
-      setIsProcessing(false);
+    const { error: dbError } = await supabase
+      .from('photo_logs')
+      .insert(photoLogData);
+
+    if (dbError) {
+      throw new Error(`Database error: ${dbError.message}`);
     }
   };
 
-  const handleUpload = async () => {
-    if (!selectedFile) {
-      toast.error('Selecione uma foto primeiro');
-      return;
-    }
-
+  const processAllPhotos = async () => {
     if (!selectedProject) {
       toast.error('Selecione um projeto');
       return;
@@ -112,72 +155,122 @@ export default function FieldPhotoUpload({ projects, onUploadComplete }: FieldPh
       return;
     }
 
+    if (photoFiles.length === 0) {
+      toast.error('Selecione pelo menos uma foto');
+      return;
+    }
+
     setIsProcessing(true);
 
-    try {
-      // Upload para storage
-      const fileName = `${user.id}/${Date.now()}_${selectedFile.name}`;
-      
-      toast.info('Fazendo upload da foto...');
-      
-      const { error: uploadError } = await supabase.storage
-        .from('field-photos')
-        .upload(fileName, selectedFile, {
-          contentType: selectedFile.type,
-          upsert: false,
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Process photos sequentially (one by one)
+    for (let i = 0; i < photoFiles.length; i++) {
+      const photoFile = photoFiles[i];
+
+      try {
+        // Step 1: Scan text (OCR)
+        updatePhotoStatus(i, { status: 'scanning' });
+        const { extractedText, utmCoords } = await processPhotoOCR(photoFile.file);
+        
+        updatePhotoStatus(i, { extractedText, utmCoords });
+
+        // Step 2: Upload to storage
+        updatePhotoStatus(i, { status: 'uploading' });
+        const imageUrl = await uploadPhotoToStorage(photoFile.file);
+
+        // Step 3: Save to database
+        await savePhotoToDatabase(imageUrl, extractedText, utmCoords);
+
+        // Step 4: Mark as done
+        updatePhotoStatus(i, { status: 'done' });
+        successCount++;
+
+      } catch (error) {
+        console.error(`Error processing photo ${i + 1}:`, error);
+        
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+        updatePhotoStatus(i, { 
+          status: 'error', 
+          errorMessage 
         });
-
-      if (uploadError) {
-        throw new Error(`Erro no upload: ${uploadError.message}`);
+        
+        errorCount++;
+        
+        // Continue to next photo
+        continue;
       }
+    }
 
-      // Obter URL pública
-      const { data: { publicUrl } } = supabase.storage
-        .from('field-photos')
-        .getPublicUrl(fileName);
+    setIsProcessing(false);
 
-      // Salvar no banco de dados
-      const photoLogData = {
-        user_id: user.id,
-        image_url: publicUrl,
-        extracted_text: extractedText || null,
-        utm_raw: utmCoords ? `${utmCoords.zone} ${utmCoords.easting} ${utmCoords.northing}` : null,
-        latitude: null, // Poderia converter UTM para lat/lon aqui
-        longitude: null,
-        captured_at: new Date().toISOString(),
-      };
+    // Show summary
+    if (successCount > 0) {
+      toast.success(`${successCount} foto(s) enviada(s) com sucesso!`);
+    }
+    
+    if (errorCount > 0) {
+      toast.error(`${errorCount} foto(s) falharam. Verifique os detalhes.`);
+    }
 
-      const { error: dbError } = await supabase
-        .from('photo_logs')
-        .insert(photoLogData);
+    // Call completion callback
+    if (successCount > 0) {
+      onUploadComplete?.();
+    }
 
-      if (dbError) {
-        throw new Error(`Erro ao salvar no banco: ${dbError.message}`);
-      }
-
-      toast.success('Foto enviada com sucesso!', {
-        icon: <CheckCircle2 className="w-4 h-4" />,
-      });
-
-      // Resetar form
-      setSelectedFile(null);
-      setPreviewUrl('');
-      setExtractedText('');
-      setUtmCoords(null);
-      setNotes('');
+    // Reset after a delay
+    setTimeout(() => {
+      setPhotoFiles([]);
       setSelectedProject('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+    }, 3000);
+  };
 
-      onUploadComplete?.();
-    } catch (error) {
-      console.error('Erro ao fazer upload:', error);
-      toast.error('Erro ao fazer upload', {
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
-      });
-    } finally {
-      setIsProcessing(false);
+  const getStatusIcon = (status: FileStatus) => {
+    switch (status) {
+      case 'waiting':
+        return <div className="w-5 h-5 rounded-full border-2 border-muted-foreground" />;
+      case 'scanning':
+        return <Loader2 className="w-5 h-5 animate-spin text-blue-600" />;
+      case 'uploading':
+        return <Loader2 className="w-5 h-5 animate-spin text-purple-600" />;
+      case 'done':
+        return <CheckCircle2 className="w-5 h-5 text-green-600" />;
+      case 'error':
+        return <AlertCircle className="w-5 h-5 text-red-600" />;
+    }
+  };
+
+  const getStatusText = (status: FileStatus) => {
+    switch (status) {
+      case 'waiting':
+        return 'Aguardando';
+      case 'scanning':
+        return 'Extraindo texto...';
+      case 'uploading':
+        return 'Enviando...';
+      case 'done':
+        return 'Concluído';
+      case 'error':
+        return 'Erro';
+    }
+  };
+
+  const getStatusColor = (status: FileStatus) => {
+    switch (status) {
+      case 'waiting':
+        return 'text-muted-foreground';
+      case 'scanning':
+        return 'text-blue-600';
+      case 'uploading':
+        return 'text-purple-600';
+      case 'done':
+        return 'text-green-600';
+      case 'error':
+        return 'text-red-600';
     }
   };
 
@@ -186,14 +279,14 @@ export default function FieldPhotoUpload({ projects, onUploadComplete }: FieldPh
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Upload className="w-5 h-5" />
-          Upload de Foto de Campo
+          Upload de Fotos de Campo
         </CardTitle>
         <CardDescription>
-          Envie fotos com coordenadas UTM. O sistema extrairá automaticamente as coordenadas do rodapé da foto.
+          Envie múltiplas fotos com coordenadas UTM. O sistema extrairá automaticamente as coordenadas do rodapé de cada foto.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Seleção de Projeto */}
+        {/* Project Selection */}
         <div className="space-y-2">
           <Label>Projeto</Label>
           <Select value={selectedProject} onValueChange={setSelectedProject} disabled={isProcessing}>
@@ -210,120 +303,110 @@ export default function FieldPhotoUpload({ projects, onUploadComplete }: FieldPh
           </Select>
         </div>
 
-        {/* Upload de arquivo */}
+        {/* File Upload */}
         <div className="space-y-2">
-          <Label htmlFor="photo-upload">Foto</Label>
+          <Label htmlFor="photo-upload">Fotos</Label>
           <Input
             id="photo-upload"
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            onChange={handleFileChange}
+            multiple
+            onChange={handleFileSelection}
             disabled={isProcessing}
             className="cursor-pointer"
           />
         </div>
 
-        {/* Preview e Status */}
-        {previewUrl && (
+        {/* Photo Grid */}
+        {photoFiles.length > 0 && (
           <div className="space-y-3">
-            <div className="relative rounded-lg overflow-hidden border">
-              <img 
-                src={previewUrl} 
-                alt="Preview" 
-                className="w-full h-auto max-h-96 object-contain bg-muted"
-              />
+            <div className="flex items-center justify-between">
+              <Label className="text-base">
+                Fotos Selecionadas ({photoFiles.length})
+              </Label>
+              {!isProcessing && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    photoFiles.forEach(p => URL.revokeObjectURL(p.previewUrl));
+                    setPhotoFiles([]);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                >
+                  Limpar Todas
+                </Button>
+              )}
             </div>
 
-            {isProcessing && (
-              <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                    Processando imagem...
-                  </p>
-                  <p className="text-xs text-blue-700 dark:text-blue-300">
-                    Extraindo texto com OCR
-                  </p>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {photoFiles.map((photoFile, index) => (
+                <div
+                  key={index}
+                  className="relative rounded-lg border overflow-hidden bg-muted"
+                >
+                  <img
+                    src={photoFile.previewUrl}
+                    alt={`Preview ${index + 1}`}
+                    className="w-full h-32 object-cover"
+                  />
+                  
+                  {/* Remove button */}
+                  {!isProcessing && photoFile.status === 'waiting' && (
+                    <button
+                      onClick={() => removePhoto(index)}
+                      className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+
+                  {/* Status Bar */}
+                  <div className="p-2 bg-background/95 backdrop-blur-sm">
+                    <div className="flex items-center gap-2">
+                      {getStatusIcon(photoFile.status)}
+                      <span className={`text-xs font-medium ${getStatusColor(photoFile.status)}`}>
+                        {getStatusText(photoFile.status)}
+                      </span>
+                    </div>
+
+                    {/* UTM Coordinates */}
+                    {photoFile.utmCoords && (
+                      <div className="mt-1 text-[10px] text-green-600 font-mono">
+                        {photoFile.utmCoords.zone} {photoFile.utmCoords.easting} {photoFile.utmCoords.northing}
+                      </div>
+                    )}
+
+                    {/* Error Message */}
+                    {photoFile.status === 'error' && photoFile.errorMessage && (
+                      <div className="mt-1 text-[10px] text-red-600">
+                        {photoFile.errorMessage}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-
-            {!isProcessing && extractedText && (
-              <>
-                {utmCoords ? (
-                  <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
-                    <div className="flex items-start gap-2">
-                      <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-green-900 dark:text-green-100">
-                          Coordenadas UTM detectadas
-                        </p>
-                        <p className="text-xs text-green-700 dark:text-green-300 mt-1 font-mono">
-                          Zona: {utmCoords.zone} | E: {utmCoords.easting} | N: {utmCoords.northing}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-orange-50 dark:bg-orange-950 rounded-lg border border-orange-200 dark:border-orange-800">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="w-5 h-5 text-orange-600 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-orange-900 dark:text-orange-100">
-                          Coordenadas não encontradas
-                        </p>
-                        <p className="text-xs text-orange-700 dark:text-orange-300 mt-1">
-                          A foto será salva mesmo assim. Você pode adicionar as coordenadas manualmente depois.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Texto extraído (opcional, para debug) */}
-                <details className="text-xs">
-                  <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                    Ver texto extraído (debug)
-                  </summary>
-                  <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto max-h-32">
-                    {extractedText}
-                  </pre>
-                </details>
-              </>
-            )}
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Anotações */}
-        <div className="space-y-2">
-          <Label htmlFor="notes">Anotações (Opcional)</Label>
-          <Textarea
-            id="notes"
-            placeholder="Adicione observações sobre esta foto..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            disabled={isProcessing}
-          />
-        </div>
-
-        {/* Botão de Upload */}
+        {/* Upload Button */}
         <Button
-          onClick={handleUpload}
-          disabled={!selectedFile || !selectedProject || isProcessing}
+          onClick={processAllPhotos}
+          disabled={photoFiles.length === 0 || !selectedProject || isProcessing}
           className="w-full"
           size="lg"
         >
           {isProcessing ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Processando...
+              Processando ({photoFiles.filter(p => p.status === 'done').length}/{photoFiles.length})
             </>
           ) : (
             <>
               <Upload className="w-4 h-4 mr-2" />
-              Enviar Foto
+              Enviar {photoFiles.length > 0 ? `${photoFiles.length} Foto(s)` : 'Fotos'}
             </>
           )}
         </Button>
