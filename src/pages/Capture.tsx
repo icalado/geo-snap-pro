@@ -10,6 +10,7 @@ import { Camera, ArrowLeft, MapPin, Loader2, Wifi, WifiOff } from 'lucide-react'
 import { toast } from 'sonner';
 import { savePendingPhoto } from '@/lib/offlineStorage';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
+import TestExifExtraction from '@/components/TestExifExtraction';
 
 export default function Capture() {
   const navigate = useNavigate();
@@ -155,14 +156,20 @@ export default function Capture() {
 
         toast.success('Foto salva localmente! Será sincronizada quando houver conexão.');
         setNotes('');
-        getCurrentLocation();
         await checkPendingCount();
         setIsSaving(false);
+        
+        // Redirect to gallery
+        setTimeout(() => {
+          navigate('/gallery');
+        }, 500);
         return;
       }
 
       // Upload to storage (online mode)
       const fileName = `${user!.id}/${selectedProject}/${Date.now()}.jpg`;
+      console.log('Uploading photo to storage:', fileName);
+      
       const { error: uploadError } = await supabase.storage
         .from('photos')
         .upload(fileName, blob, {
@@ -170,15 +177,22 @@ export default function Capture() {
           upsert: false,
         });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw uploadError;
+      }
+      
+      console.log('Photo uploaded successfully');
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('photos')
         .getPublicUrl(fileName);
+      
+      console.log('Photo public URL:', publicUrl);
 
       // Save to database
-      const { error: dbError } = await supabase.from('photos').insert({
+      const photoData = {
         user_id: user!.id,
         project_id: selectedProject,
         image_url: publicUrl,
@@ -187,14 +201,28 @@ export default function Capture() {
         accuracy: coords.accuracy,
         notes: notes || null,
         timestamp: new Date().toISOString(),
-      });
+      };
+      
+      console.log('Saving photo to database:', photoData);
+      
+      const { data: insertedData, error: dbError } = await supabase.from('photos').insert(photoData).select();
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        console.error('Database insert error:', dbError);
+        throw dbError;
+      }
+      
+      console.log('Photo saved to database:', insertedData);
 
       toast.success('Foto salva com sucesso!');
       setNotes('');
-      getCurrentLocation(); // Get fresh location for next photo
+      
+      // Redirect to gallery to see the photo
+      setTimeout(() => {
+        navigate('/gallery');
+      }, 500);
     } catch (error) {
+      console.error('Error saving photo:', error);
       toast.error('Erro ao salvar foto: ' + (error as Error).message);
     } finally {
       setIsSaving(false);
@@ -343,6 +371,9 @@ export default function Capture() {
             />
           </CardContent>
         </Card>
+
+        {/* Test EXIF Extraction */}
+        <TestExifExtraction />
       </main>
     </div>
   );
