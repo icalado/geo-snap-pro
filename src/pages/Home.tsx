@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MapPin, Camera, FolderOpen, LogOut, Leaf } from 'lucide-react';
+import { MapPin, Camera, FolderOpen, LogOut, Leaf, FileText, Image } from 'lucide-react';
 
 const Home = () => {
   const { user, signOut } = useAuth();
@@ -77,8 +77,25 @@ const Home = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button className="w-full" variant="outline" onClick={() => navigate('/projects')}>
                 Ver Projetos
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-elevation hover:shadow-xl transition-shadow">
+            <CardHeader>
+              <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center mb-4">
+                <Image className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <CardTitle>Galeria</CardTitle>
+              <CardDescription>
+                Ver todas as fotos
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="secondary" onClick={() => navigate('/gallery')}>
+                Abrir Galeria
               </Button>
             </CardContent>
           </Card>
@@ -96,6 +113,23 @@ const Home = () => {
             <CardContent>
               <Button className="w-full" variant="secondary">
                 Abrir Mapa
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-elevation hover:shadow-xl transition-shadow">
+            <CardHeader>
+              <div className="w-12 h-12 rounded-lg bg-gradient-accent flex items-center justify-center mb-4">
+                <FileText className="w-6 h-6 text-accent-foreground" />
+              </div>
+              <CardTitle>Relatórios</CardTitle>
+              <CardDescription>
+                Gerar relatórios PDF
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="outline" onClick={() => navigate('/reports')}>
+                Ver Relatórios
               </Button>
             </CardContent>
           </Card>

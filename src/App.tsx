@@ -9,6 +9,9 @@ import Splash from "./pages/Splash";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Capture from "./pages/Capture";
+import Projects from "./pages/Projects";
+import Gallery from "./pages/Gallery";
+import Reports from "./pages/Reports";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +39,30 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Capture />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/projects"
+              element={
+                <ProtectedRoute>
+                  <Projects />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/gallery"
+              element={
+                <ProtectedRoute>
+                  <Gallery />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute>
+                  <Reports />
                 </ProtectedRoute>
               }
             />
