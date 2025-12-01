@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { ArrowLeft, MapPin, Calendar, Trash2 } from 'lucide-react';
+import { ArrowLeft, MapPin, Calendar, Trash2, Upload, Wifi, WifiOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { extractGeoFromImage } from '@/lib/geo';
+import { useOfflineSync } from '@/hooks/useOfflineSync';
 
 interface Photo {
   id: string;
@@ -32,6 +34,9 @@ export default function Gallery() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { isOnline, isSyncing, pendingCount } = useOfflineSync(user?.id);
 
   useEffect(() => {
     loadProjects();
@@ -92,6 +97,88 @@ export default function Gallery() {
     setSelectedPhoto(null);
   };
 
+  const handleImportPhotos = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0 || !user) return;
+
+    if (selectedProject === 'all') {
+      toast.error('Selecione um projeto específico para importar fotos');
+      return;
+    }
+
+    setIsImporting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      
+      try {
+        // Extract GPS data from EXIF
+        const geoData = await extractGeoFromImage(file);
+
+        if (!geoData) {
+          toast.error(`Foto ${file.name}: sem dados de localização`);
+          errorCount++;
+          continue;
+        }
+
+        // Upload to storage
+        const fileName = `${user.id}/${selectedProject}/${Date.now()}-${i}.jpg`;
+        const { error: uploadError } = await supabase.storage
+          .from('photos')
+          .upload(fileName, file, {
+            contentType: file.type,
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('photos')
+          .getPublicUrl(fileName);
+
+        // Save to database
+        const { error: dbError } = await supabase.from('photos').insert({
+          user_id: user.id,
+          project_id: selectedProject,
+          image_url: publicUrl,
+          latitude: geoData.lat,
+          longitude: geoData.lon,
+          altitude: typeof geoData.alt === 'number' ? geoData.alt : null,
+          timestamp: geoData.datetime || new Date().toISOString(),
+        });
+
+        if (dbError) throw dbError;
+
+        successCount++;
+      } catch (error) {
+        console.error('Error importing photo:', error);
+        errorCount++;
+      }
+    }
+
+    setIsImporting(false);
+    
+    if (successCount > 0) {
+      toast.success(`${successCount} foto(s) importada(s) com sucesso!`);
+      loadPhotos();
+    }
+    if (errorCount > 0) {
+      toast.error(`Falha ao importar ${errorCount} foto(s)`);
+    }
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-background">
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
@@ -100,26 +187,65 @@ export default function Gallery() {
             <Button variant="ghost" size="icon" onClick={() => navigate('/home')}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <div>
+            <div className="flex-1">
               <h1 className="text-xl font-bold">Galeria de Fotos</h1>
               <p className="text-xs text-muted-foreground">
                 {photos.length} foto(s) encontrada(s)
               </p>
             </div>
+            <div className="flex items-center gap-2">
+              {isOnline ? (
+                <Wifi className="w-5 h-5 text-green-500" />
+              ) : (
+                <WifiOff className="w-5 h-5 text-orange-500" />
+              )}
+              {pendingCount > 0 && (
+                <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full">
+                  {pendingCount} pendente(s)
+                </span>
+              )}
+            </div>
           </div>
-          <Select value={selectedProject} onValueChange={setSelectedProject}>
-            <SelectTrigger>
-              <SelectValue placeholder="Filtrar por projeto" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Projetos</SelectItem>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <Select value={selectedProject} onValueChange={setSelectedProject} disabled={isImporting}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Filtrar por projeto" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Projetos</SelectItem>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button 
+              onClick={handleImportPhotos}
+              disabled={isImporting || selectedProject === 'all'}
+              variant="outline"
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Importando...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Importar
+                </>
+              )}
+            </Button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleFileSelect}
+          />
         </div>
       </header>
 
