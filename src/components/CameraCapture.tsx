@@ -32,9 +32,9 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
 
       streamRef.current = stream;
       setIsStreaming(true);
-      toast.success('Camera started');
+      toast.success('Câmera iniciada');
     } catch (error) {
-      toast.error('Failed to access camera: ' + (error as Error).message);
+      toast.error('Erro ao acessar câmera: ' + (error as Error).message);
     }
   };
 
@@ -47,7 +47,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
       videoRef.current.srcObject = null;
     }
     setIsStreaming(false);
-    toast.info('Camera stopped');
+    toast.info('Câmera parada');
   };
 
   const capturePhoto = async () => {
@@ -55,7 +55,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
     const canvas = canvasRef.current;
 
     if (!video || !canvas || video.videoWidth === 0) {
-      toast.error('Please start the camera first');
+      toast.error('Inicie a câmera primeiro');
       return;
     }
 
@@ -69,20 +69,20 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
 
     canvas.toBlob(async (blob) => {
       if (!blob) {
-        toast.error('Failed to capture image');
+        toast.error('Erro ao capturar imagem');
         return;
       }
 
       // Convert Blob to File for EXIF extraction
       const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' });
 
-      toast.info('Extracting geolocation data...');
+      toast.info('Extraindo dados de geolocalização...');
       const geoData = await extractGeoFromImage(file);
       
       if (geoData) {
-        toast.success('Photo captured with geolocation!');
+        toast.success('Foto capturada com geolocalização!');
       } else {
-        toast.warning('Photo captured but no geolocation data found in EXIF');
+        toast.warning('Foto capturada mas sem dados EXIF de localização');
       }
       
       onCapture(geoData);
@@ -94,9 +94,9 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Camera className="w-5 h-5 text-primary" />
-          Camera Capture
+          Captura de Câmera
         </CardTitle>
-        <CardDescription>Capture photos with embedded geolocation data</CardDescription>
+        <CardDescription>Capturar fotos com geolocalização embutida</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
@@ -113,13 +113,13 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
           {!isStreaming ? (
             <Button onClick={startCamera} className="flex-1">
               <Play className="w-4 h-4 mr-2" />
-              Start Camera
+              Iniciar Câmera
             </Button>
           ) : (
             <>
               <Button onClick={capturePhoto} className="flex-1">
                 <Camera className="w-4 h-4 mr-2" />
-                Capture Photo
+                Capturar Foto
               </Button>
               <Button onClick={stopCamera} variant="outline">
                 <Square className="w-4 h-4" />

@@ -118,25 +118,25 @@ export default function Gallery() {
 
     toast.info(`Iniciando importação de ${files.length} foto(s)...`);
 
-    // Process files one by one to avoid overwhelming the browser
+    // Process files one by one
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       setImportProgress({ current: i + 1, total: files.length });
       
       try {
-        // Extract GPS data from EXIF with timeout
-        const geoDataPromise = extractGeoFromImage(file);
-        const timeoutPromise = new Promise<null>((resolve) => 
-          setTimeout(() => resolve(null), 10000) // 10 second timeout
-        );
+        toast.info(`Processando foto ${i + 1}/${files.length}...`);
         
-        const geoData = await Promise.race([geoDataPromise, timeoutPromise]);
+        // Extract GPS data from EXIF
+        const geoData = await extractGeoFromImage(file);
 
         if (!geoData) {
-          console.log(`Photo ${i + 1}: No GPS data or timeout`);
+          console.log(`Photo ${i + 1}: No GPS data found`);
+          toast.warning(`Foto ${i + 1}: sem dados de GPS`);
           errorCount++;
           continue;
         }
+
+        console.log(`Photo ${i + 1} GPS:`, { lat: geoData.lat, lon: geoData.lon });
 
         // Upload to storage
         const fileName = `${user.id}/${selectedProject}/${Date.now()}-${i}.jpg`;
@@ -157,6 +157,8 @@ export default function Gallery() {
           .from('photos')
           .getPublicUrl(fileName);
 
+        console.log(`Photo ${i + 1} uploaded to:`, publicUrl);
+
         // Save to database
         const { error: dbError } = await supabase.from('photos').insert({
           user_id: user.id,
@@ -174,8 +176,10 @@ export default function Gallery() {
         }
 
         successCount++;
+        toast.success(`Foto ${i + 1}/${files.length} importada!`);
       } catch (error) {
         console.error('Error importing photo:', error);
+        toast.error(`Erro na foto ${i + 1}: ${(error as Error).message}`);
         errorCount++;
       }
     }
@@ -184,11 +188,11 @@ export default function Gallery() {
     setImportProgress({ current: 0, total: 0 });
     
     if (successCount > 0) {
-      toast.success(`${successCount} foto(s) importada(s) com sucesso!`);
-      loadPhotos();
+      toast.success(`✅ ${successCount} foto(s) importada(s) com sucesso!`);
+      await loadPhotos(); // Reload gallery
     }
     if (errorCount > 0) {
-      toast.error(`${errorCount} foto(s) não puderam ser importadas (sem GPS ou erro)`);
+      toast.error(`❌ ${errorCount} foto(s) não puderam ser importadas (sem GPS ou erro)`);
     }
 
     // Reset file input
