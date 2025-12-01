@@ -76,26 +76,38 @@ export type Database = {
       }
       projects: {
         Row: {
+          contract: string | null
           created_at: string | null
           description: string | null
+          fauna_subtype: string | null
           id: string
+          location: string | null
           name: string
+          project_type: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          contract?: string | null
           created_at?: string | null
           description?: string | null
+          fauna_subtype?: string | null
           id?: string
+          location?: string | null
           name: string
+          project_type?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          contract?: string | null
           created_at?: string | null
           description?: string | null
+          fauna_subtype?: string | null
           id?: string
+          location?: string | null
           name?: string
+          project_type?: string | null
           updated_at?: string | null
           user_id?: string
         }
