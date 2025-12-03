@@ -1,13 +1,38 @@
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MapPin, Camera, FolderOpen, LogOut, Leaf, FileText, Image } from 'lucide-react';
+import { MapPin, FolderOpen, LogOut, Leaf, Image, Plus, ChevronRight } from 'lucide-react';
+import AppLayout from '@/components/layout/AppLayout';
+import { supabase } from '@/integrations/supabase/client';
 
 const Home = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [projectCount, setProjectCount] = useState(0);
+  const [recentProjects, setRecentProjects] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      if (!user) return;
+      
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(3);
+
+      if (!error && data) {
+        setRecentProjects(data);
+        setProjectCount(data.length);
+      }
+    };
+
+    loadProjects();
+  }, [user]);
 
   const getUserInitials = () => {
     if (!user?.user_metadata?.name) return 'U';
@@ -19,26 +44,44 @@ const Home = () => {
       .slice(0, 2);
   };
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Bom dia';
+    if (hour < 18) return 'Boa tarde';
+    return 'Boa noite';
+  };
+
+  const formatDate = () => {
+    return new Date().toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long'
+    });
+  };
+
+  const getUserName = () => {
+    return user?.user_metadata?.name?.split(' ')[0] || 'Pesquisador';
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-background">
+    <AppLayout>
       {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <Leaf className="w-8 h-8 text-accent" />
-            <div>
-              <h1 className="text-xl font-bold">BioGeo Photo Log</h1>
-              <p className="text-xs text-muted-foreground">Seus projetos de campo</p>
+      <header className="bg-card/80 backdrop-blur-sm sticky top-0 z-10 border-b border-border">
+        <div className="px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
+              <Leaf className="w-5 h-5 text-primary-foreground" />
             </div>
+            <span className="text-lg font-semibold text-foreground">BioGeo</span>
           </div>
-          <div className="flex items-center space-x-4">
-            <Avatar>
+          <div className="flex items-center gap-3">
+            <Avatar className="w-9 h-9 ring-2 ring-primary/20">
               <AvatarImage src={user?.user_metadata?.avatar_url} />
-              <AvatarFallback className="bg-primary text-primary-foreground">
+              <AvatarFallback className="bg-primary text-primary-foreground text-sm">
                 {getUserInitials()}
               </AvatarFallback>
             </Avatar>
-            <Button variant="ghost" size="icon" onClick={signOut}>
+            <Button variant="ghost" size="icon" onClick={signOut} className="text-muted-foreground">
               <LogOut className="w-5 h-5" />
             </Button>
           </div>
@@ -46,108 +89,119 @@ const Home = () => {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* Quick Actions */}
-          <Card className="shadow-elevation hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 rounded-lg bg-gradient-primary flex items-center justify-center mb-4">
-                <Camera className="w-6 h-6 text-primary-foreground" />
+      <main className="px-4 py-6 space-y-6">
+        {/* Greeting Section */}
+        <div className="space-y-1 animate-fade-in">
+          <p className="text-sm text-muted-foreground capitalize">{formatDate()}</p>
+          <h1 className="text-2xl font-bold text-foreground">
+            {getGreeting()}, {getUserName()}!
+          </h1>
+          <p className="text-muted-foreground">
+            {projectCount > 0 
+              ? `${projectCount} projeto${projectCount > 1 ? 's' : ''} ativo${projectCount > 1 ? 's' : ''}`
+              : 'Comece seu primeiro projeto de campo'
+            }
+          </p>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-2 gap-3">
+          <Card 
+            className="shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.98] border-0"
+            onClick={() => navigate('/gallery')}
+          >
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Image className="w-5 h-5 text-primary" />
               </div>
-              <CardTitle>Nova Foto</CardTitle>
-              <CardDescription>
-                Capturar foto com localização GPS
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="default" onClick={() => navigate('/capture')}>
-                Abrir Câmera
-              </Button>
+              <div>
+                <p className="font-medium text-foreground">Galeria</p>
+                <p className="text-xs text-muted-foreground">Ver fotos</p>
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="shadow-elevation hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 rounded-lg bg-gradient-accent flex items-center justify-center mb-4">
-                <FolderOpen className="w-6 h-6 text-accent-foreground" />
+          <Card 
+            className="shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.98] border-0"
+            onClick={() => navigate('/projects')}
+          >
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-accent/10 flex items-center justify-center">
+                <FolderOpen className="w-5 h-5 text-accent" />
               </div>
-              <CardTitle>Meus Projetos</CardTitle>
-              <CardDescription>
-                Gerenciar projetos existentes
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/projects')}>
-                Ver Projetos
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-elevation hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center mb-4">
-                <Image className="w-6 h-6 text-primary-foreground" />
+              <div>
+                <p className="font-medium text-foreground">Projetos</p>
+                <p className="text-xs text-muted-foreground">Gerenciar</p>
               </div>
-              <CardTitle>Galeria</CardTitle>
-              <CardDescription>
-                Ver todas as fotos
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="secondary" onClick={() => navigate('/gallery')}>
-                Abrir Galeria
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-elevation hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center mb-4">
-                <MapPin className="w-6 h-6 text-primary-foreground" />
-              </div>
-              <CardTitle>Mapa</CardTitle>
-              <CardDescription>
-                Visualizar fotos no mapa
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="secondary">
-                Abrir Mapa
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-elevation hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <div className="w-12 h-12 rounded-lg bg-gradient-accent flex items-center justify-center mb-4">
-                <FileText className="w-6 h-6 text-accent-foreground" />
-              </div>
-              <CardTitle>Relatórios</CardTitle>
-              <CardDescription>
-                Gerar relatórios PDF
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/reports')}>
-                Ver Relatórios
-              </Button>
             </CardContent>
           </Card>
         </div>
 
         {/* Recent Projects Section */}
-        <div className="mt-12">
-          <h2 className="text-2xl font-bold mb-6">Projetos Recentes</h2>
-          <Card>
-            <CardContent className="py-12 text-center text-muted-foreground">
-              <FolderOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhum projeto ainda</p>
-              <p className="text-sm">Crie seu primeiro projeto para começar</p>
-            </CardContent>
-          </Card>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-foreground">Projetos Recentes</h2>
+            {recentProjects.length > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate('/projects')}
+                className="text-primary hover:text-primary/80 -mr-2"
+              >
+                Ver todos
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            )}
+          </div>
+
+          {recentProjects.length > 0 ? (
+            <div className="space-y-2">
+              {recentProjects.map((project) => (
+                <Card 
+                  key={project.id} 
+                  className="shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.99] border-0"
+                  onClick={() => navigate(`/projects/${project.id}/map`)}
+                >
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
+                        <MapPin className="w-5 h-5 text-primary-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">{project.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {project.location || 'Sem localização'}
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="shadow-card border-dashed border-2 border-border bg-transparent">
+              <CardContent className="py-10 flex flex-col items-center text-center">
+                <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+                  <FolderOpen className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="font-medium text-foreground mb-1">Nenhum projeto ainda</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Crie seu primeiro projeto para organizar suas fotos de campo
+                </p>
+                <Button 
+                  onClick={() => navigate('/projects')}
+                  className="bg-gradient-primary hover:opacity-90"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Criar Projeto
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
-    </div>
+    </AppLayout>
   );
 };
 

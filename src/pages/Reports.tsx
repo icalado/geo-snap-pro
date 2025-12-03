@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, FileText, Download } from 'lucide-react';
+import { FileText, Download, Loader2, Image, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
+import AppLayout from '@/components/layout/AppLayout';
 
 interface Project {
   id: string;
@@ -31,7 +31,6 @@ interface Photo {
 }
 
 export default function Reports() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>('');
@@ -88,12 +87,10 @@ export default function Reports() {
       const pdf = new jsPDF();
       let yPosition = 20;
 
-      // Título
       pdf.setFontSize(18);
       pdf.text('Relatório de Campo - BioGeo Photo Log', 20, yPosition);
       yPosition += 15;
 
-      // Informações do Projeto
       pdf.setFontSize(12);
       pdf.text(`Projeto: ${project.name}`, 20, yPosition);
       yPosition += 7;
@@ -124,7 +121,6 @@ export default function Reports() {
       pdf.text(`Total de Fotos: ${photos.length}`, 20, yPosition);
       yPosition += 10;
 
-      // Lista de Fotos
       pdf.setFontSize(14);
       pdf.text('Registros Fotográficos:', 20, yPosition);
       yPosition += 10;
@@ -170,7 +166,6 @@ export default function Reports() {
         yPosition += 5;
       }
 
-      // Rodapé
       const pageCount = pdf.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         pdf.setPage(i);
@@ -194,23 +189,20 @@ export default function Reports() {
   const currentProject = projects.find((p) => p.id === selectedProject);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/home')}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-xl font-bold">Relatórios</h1>
-            <p className="text-xs text-muted-foreground">Gerar relatórios de projetos</p>
-          </div>
+    <AppLayout>
+      {/* Header */}
+      <header className="bg-card/80 backdrop-blur-sm sticky top-0 z-10 border-b border-border">
+        <div className="px-4 py-4">
+          <h1 className="text-lg font-semibold text-foreground">Relatórios</h1>
+          <p className="text-xs text-muted-foreground">Gerar relatórios PDF</p>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Selecionar Projeto</CardTitle>
+      <main className="px-4 py-6 space-y-4">
+        {/* Project Selection */}
+        <Card className="shadow-card border-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Selecionar Projeto</CardTitle>
           </CardHeader>
           <CardContent>
             <Select value={selectedProject} onValueChange={setSelectedProject}>
@@ -230,47 +222,57 @@ export default function Reports() {
 
         {currentProject && (
           <>
-            <Card>
-              <CardHeader>
-                <CardTitle>Informações do Projeto</CardTitle>
+            {/* Project Info */}
+            <Card className="shadow-card border-0">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Informações do Projeto</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <div>
-                  <span className="font-medium">Nome:</span> {currentProject.name}
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
+                    <MapPin className="w-5 h-5 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">{currentProject.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {currentProject.project_type === 'fauna'
+                        ? `Fauna - ${currentProject.fauna_subtype}`
+                        : 'Flora'}
+                    </p>
+                  </div>
                 </div>
-                {currentProject.description && (
-                  <div>
-                    <span className="font-medium">Descrição:</span> {currentProject.description}
+                
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="p-3 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Image className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Fotos</span>
+                    </div>
+                    <p className="text-lg font-semibold text-foreground">{photos.length}</p>
                   </div>
-                )}
-                {currentProject.location && (
-                  <div>
-                    <span className="font-medium">Localização:</span> {currentProject.location}
+                  <div className="p-3 rounded-lg bg-muted/50">
+                    <div className="flex items-center gap-2 mb-1">
+                      <FileText className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-xs text-muted-foreground">Localização</span>
+                    </div>
+                    <p className="text-sm text-foreground truncate">
+                      {currentProject.location || 'N/A'}
+                    </p>
                   </div>
-                )}
-                {currentProject.contract && (
-                  <div>
-                    <span className="font-medium">Contrato:</span> {currentProject.contract}
-                  </div>
-                )}
-                <div>
-                  <span className="font-medium">Tipo:</span>{' '}
-                  {currentProject.project_type === 'fauna'
-                    ? `Fauna - ${currentProject.fauna_subtype}`
-                    : 'Flora'}
-                </div>
-                <div>
-                  <span className="font-medium">Total de Fotos:</span> {photos.length}
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="w-5 h-5" />
+            {/* Generate Report */}
+            <Card className="shadow-card border-0">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-primary" />
                   Gerar Relatório
                 </CardTitle>
+                <CardDescription>
+                  Exportar dados do projeto em formato PDF
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">
@@ -280,11 +282,14 @@ export default function Reports() {
                 <Button
                   onClick={generatePDF}
                   disabled={isGenerating || photos.length === 0}
-                  className="w-full"
+                  className="w-full bg-gradient-primary hover:opacity-90"
                   size="lg"
                 >
                   {isGenerating ? (
-                    'Gerando...'
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Gerando...
+                    </>
                   ) : (
                     <>
                       <Download className="w-4 h-4 mr-2" />
@@ -293,7 +298,7 @@ export default function Reports() {
                   )}
                 </Button>
                 {photos.length === 0 && (
-                  <p className="text-sm text-amber-600">
+                  <p className="text-sm text-center text-destructive">
                     Este projeto não possui fotos registradas.
                   </p>
                 )}
@@ -302,6 +307,6 @@ export default function Reports() {
           </>
         )}
       </main>
-    </div>
+    </AppLayout>
   );
 }
