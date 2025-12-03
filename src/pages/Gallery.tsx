@@ -4,9 +4,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { MapPin, Calendar, Trash2, Upload, Wifi, WifiOff, Loader2, Image } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { MapPin, Calendar, Trash2, Upload, Wifi, WifiOff, Loader2, Image, Edit } from 'lucide-react';
 import { toast } from 'sonner';
 import { extractGeoFromImage } from '@/lib/geo';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
@@ -37,6 +39,8 @@ export default function Gallery() {
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [editingPhoto, setEditingPhoto] = useState<Photo | null>(null);
+  const [editNotes, setEditNotes] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { isOnline, isSyncing, pendingCount } = useOfflineSync(user?.id);
 
@@ -97,6 +101,30 @@ export default function Gallery() {
     toast.success('Foto excluída com sucesso!');
     loadPhotos();
     setSelectedPhoto(null);
+  };
+
+  const handleEditPhoto = (photo: Photo, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingPhoto(photo);
+    setEditNotes(photo.notes || '');
+  };
+
+  const handleSavePhotoEdit = async () => {
+    if (!editingPhoto) return;
+
+    const { error } = await supabase
+      .from('photos')
+      .update({ notes: editNotes || null })
+      .eq('id', editingPhoto.id);
+
+    if (error) {
+      toast.error('Erro ao atualizar foto');
+      return;
+    }
+
+    toast.success('Foto atualizada com sucesso!');
+    setEditingPhoto(null);
+    loadPhotos();
   };
 
   const handleImportPhotos = () => {
@@ -281,11 +309,21 @@ export default function Gallery() {
                   className="w-full aspect-square object-cover"
                 />
                 <CardContent className="p-2">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Calendar className="w-3 h-3" />
-                    {photo.timestamp
-                      ? new Date(photo.timestamp).toLocaleDateString('pt-BR')
-                      : 'Sem data'}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Calendar className="w-3 h-3" />
+                      {photo.timestamp
+                        ? new Date(photo.timestamp).toLocaleDateString('pt-BR')
+                        : 'Sem data'}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e) => handleEditPhoto(photo, e)}
+                    >
+                      <Edit className="w-3 h-3" />
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -348,10 +386,38 @@ export default function Gallery() {
                   Excluir
                 </Button>
               </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Photo Modal */}
+        <Dialog open={!!editingPhoto} onOpenChange={() => setEditingPhoto(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Editar Foto</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="editNotes">Notas</Label>
+                <Input
+                  id="editNotes"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Adicione notas sobre esta foto..."
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => setEditingPhoto(null)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSavePhotoEdit} className="bg-gradient-primary hover:opacity-90">
+                  Salvar
+                </Button>
+              </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </AppLayout>
-  );
-}
+          </DialogContent>
+        </Dialog>
+      </AppLayout>
+    );
+  }

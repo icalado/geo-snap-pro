@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Camera, ArrowLeft, MapPin, Loader2, Wifi, WifiOff, Mountain, Navigation } from 'lucide-react';
 import { toast } from 'sonner';
 import { savePendingPhoto } from '@/lib/offlineStorage';
@@ -24,6 +26,7 @@ export default function Capture() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [notes, setNotes] = useState('');
+  const [fileName, setFileName] = useState('');
   const [coords, setCoords] = useState<{ latitude: number; longitude: number; accuracy: number; altitude?: number } | null>(null);
   const { isOnline, isSyncing, pendingCount, checkPendingCount } = useOfflineSync(user?.id);
 
@@ -37,6 +40,21 @@ export default function Capture() {
       }
     };
   }, []);
+
+  // Generate automatic file name when project is selected
+  useEffect(() => {
+    if (selectedProject) {
+      const project = projects.find(p => p.id === selectedProject);
+      if (project) {
+        const prefix = project.name.substring(0, 3).toLowerCase();
+        const today = new Date();
+        const dateStr = `${String(today.getDate()).padStart(2, '0')}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getFullYear()).slice(-2)}`;
+        setFileName(`${prefix}${dateStr}`);
+      }
+    } else {
+      setFileName('');
+    }
+  }, [selectedProject, projects]);
 
   const loadProjects = async () => {
     if (!user) return;
@@ -243,7 +261,7 @@ export default function Capture() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Projeto</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <Select value={selectedProject} onValueChange={setSelectedProject}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione um projeto" />
@@ -260,6 +278,23 @@ export default function Capture() {
               <p className="text-sm text-muted-foreground mt-2">
                 Nenhum projeto encontrado. Crie um projeto primeiro.
               </p>
+            )}
+            
+            {/* Auto-generated file name */}
+            {selectedProject && (
+              <div className="space-y-2">
+                <Label htmlFor="fileName" className="text-sm">Nome do Arquivo</Label>
+                <Input
+                  id="fileName"
+                  value={fileName}
+                  onChange={(e) => setFileName(e.target.value)}
+                  placeholder="Ex: cop031225"
+                  className="font-mono"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Gerado automaticamente: 3 letras do projeto + data
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
