@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { ArrowLeft, MapPin, Calendar, Trash2, Upload, Wifi, WifiOff, Loader2 } from 'lucide-react';
+import { MapPin, Calendar, Trash2, Upload, Wifi, WifiOff, Loader2, Image } from 'lucide-react';
 import { toast } from 'sonner';
 import { extractGeoFromImage } from '@/lib/geo';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
+import AppLayout from '@/components/layout/AppLayout';
 
 interface Photo {
   id: string;
@@ -118,7 +119,6 @@ export default function Gallery() {
 
     toast.info(`Iniciando importação de ${files.length} foto(s)...`);
 
-    // Process files one by one
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       setImportProgress({ current: i + 1, total: files.length });
@@ -126,19 +126,14 @@ export default function Gallery() {
       try {
         toast.info(`Processando foto ${i + 1}/${files.length}...`);
         
-        // Extract GPS data from EXIF
         const geoData = await extractGeoFromImage(file);
 
         if (!geoData) {
-          console.log(`Photo ${i + 1}: No GPS data found`);
           toast.warning(`Foto ${i + 1}: sem dados de GPS`);
           errorCount++;
           continue;
         }
 
-        console.log(`Photo ${i + 1} GPS:`, { lat: geoData.lat, lon: geoData.lon });
-
-        // Upload to storage
         const fileName = `${user.id}/${selectedProject}/${Date.now()}-${i}.jpg`;
         const { error: uploadError } = await supabase.storage
           .from('photos')
@@ -147,19 +142,12 @@ export default function Gallery() {
             upsert: false,
           });
 
-        if (uploadError) {
-          console.error('Upload error:', uploadError);
-          throw uploadError;
-        }
+        if (uploadError) throw uploadError;
 
-        // Get public URL
         const { data: { publicUrl } } = supabase.storage
           .from('photos')
           .getPublicUrl(fileName);
 
-        console.log(`Photo ${i + 1} uploaded to:`, publicUrl);
-
-        // Save to database
         const { error: dbError } = await supabase.from('photos').insert({
           user_id: user.id,
           project_id: selectedProject,
@@ -170,10 +158,7 @@ export default function Gallery() {
           timestamp: geoData.datetime || new Date().toISOString(),
         });
 
-        if (dbError) {
-          console.error('Database error:', dbError);
-          throw dbError;
-        }
+        if (dbError) throw dbError;
 
         successCount++;
         toast.success(`Foto ${i + 1}/${files.length} importada!`);
@@ -188,42 +173,39 @@ export default function Gallery() {
     setImportProgress({ current: 0, total: 0 });
     
     if (successCount > 0) {
-      toast.success(`✅ ${successCount} foto(s) importada(s) com sucesso!`);
-      await loadPhotos(); // Reload gallery
+      toast.success(`${successCount} foto(s) importada(s) com sucesso!`);
+      await loadPhotos();
     }
     if (errorCount > 0) {
-      toast.error(`❌ ${errorCount} foto(s) não puderam ser importadas (sem GPS ou erro)`);
+      toast.error(`${errorCount} foto(s) não puderam ser importadas`);
     }
 
-    // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4 mb-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/home')}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div className="flex-1">
-              <h1 className="text-xl font-bold">Galeria de Fotos</h1>
+    <AppLayout>
+      {/* Header */}
+      <header className="bg-card/80 backdrop-blur-sm sticky top-0 z-10 border-b border-border">
+        <div className="px-4 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-lg font-semibold text-foreground">Galeria</h1>
               <p className="text-xs text-muted-foreground">
-                {photos.length} foto(s) encontrada(s)
+                {photos.length} foto(s)
               </p>
             </div>
             <div className="flex items-center gap-2">
               {isOnline ? (
-                <Wifi className="w-5 h-5 text-green-500" />
+                <Wifi className="w-5 h-5 text-primary" />
               ) : (
-                <WifiOff className="w-5 h-5 text-orange-500" />
+                <WifiOff className="w-5 h-5 text-destructive" />
               )}
               {pendingCount > 0 && (
-                <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full">
-                  {pendingCount} pendente(s)
+                <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded-full">
+                  {pendingCount}
                 </span>
               )}
             </div>
@@ -246,6 +228,7 @@ export default function Gallery() {
               onClick={handleImportPhotos}
               disabled={isImporting || selectedProject === 'all'}
               variant="outline"
+              className="shrink-0"
             >
               {isImporting ? (
                 <>
@@ -271,19 +254,25 @@ export default function Gallery() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
+      <main className="px-4 py-6">
         {photos.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">Nenhuma foto encontrada</p>
+          <Card className="shadow-card border-dashed border-2 border-border bg-transparent">
+            <CardContent className="py-12 flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+                <Image className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <h3 className="font-medium text-foreground mb-1">Nenhuma foto</h3>
+              <p className="text-sm text-muted-foreground">
+                Capture ou importe fotos para começar
+              </p>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {photos.map((photo) => (
               <Card
                 key={photo.id}
-                className="cursor-pointer overflow-hidden hover:shadow-lg transition-shadow"
+                className="cursor-pointer overflow-hidden shadow-card hover:shadow-soft transition-all active:scale-[0.98] border-0"
                 onClick={() => setSelectedPhoto(photo)}
               >
                 <img
@@ -296,7 +285,7 @@ export default function Gallery() {
                     <Calendar className="w-3 h-3" />
                     {photo.timestamp
                       ? new Date(photo.timestamp).toLocaleDateString('pt-BR')
-                      : 'Data não disponível'}
+                      : 'Sem data'}
                   </div>
                 </CardContent>
               </Card>
@@ -306,7 +295,7 @@ export default function Gallery() {
       </main>
 
       <Dialog open={!!selectedPhoto} onOpenChange={() => setSelectedPhoto(null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-lg">
           {selectedPhoto && (
             <div className="space-y-4">
               <img
@@ -316,19 +305,18 @@ export default function Gallery() {
               />
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm">
-                  <MapPin className="w-4 h-4" />
-                  <span>
-                    Lat: {selectedPhoto.latitude.toFixed(6)}, Lon:{' '}
-                    {selectedPhoto.longitude.toFixed(6)}
+                  <MapPin className="w-4 h-4 text-primary" />
+                  <span className="font-mono text-xs">
+                    {selectedPhoto.latitude.toFixed(6)}, {selectedPhoto.longitude.toFixed(6)}
                   </span>
                   {selectedPhoto.accuracy && (
-                    <span className="text-muted-foreground">
+                    <span className="text-muted-foreground text-xs">
                       (±{selectedPhoto.accuracy.toFixed(0)}m)
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-sm">
-                  <Calendar className="w-4 h-4" />
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
                   <span>
                     {selectedPhoto.timestamp
                       ? new Date(selectedPhoto.timestamp).toLocaleString('pt-BR')
@@ -337,7 +325,7 @@ export default function Gallery() {
                 </div>
                 {selectedPhoto.notes && (
                   <div className="mt-2 p-3 bg-muted rounded-lg">
-                    <p className="text-sm font-medium mb-1">Anotações:</p>
+                    <p className="text-sm font-medium mb-1">Notas:</p>
                     <p className="text-sm text-muted-foreground">{selectedPhoto.notes}</p>
                   </div>
                 )}
@@ -364,6 +352,6 @@ export default function Gallery() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </AppLayout>
   );
 }

@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ArrowLeft, Plus, Edit, Trash2, MapPin } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin, ChevronRight, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
+import AppLayout from '@/components/layout/AppLayout';
 
 interface Project {
   id: string;
@@ -162,26 +163,22 @@ export default function Projects() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/home')}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <div>
-              <h1 className="text-xl font-bold">Meus Projetos</h1>
-              <p className="text-xs text-muted-foreground">Gerencie seus projetos de campo</p>
-            </div>
+    <AppLayout>
+      {/* Header */}
+      <header className="bg-card/80 backdrop-blur-sm sticky top-0 z-10 border-b border-border">
+        <div className="px-4 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-semibold text-foreground">Projetos</h1>
+            <p className="text-xs text-muted-foreground">{projects.length} projeto(s)</p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => handleOpenDialog()}>
+              <Button onClick={() => handleOpenDialog()} className="bg-gradient-primary hover:opacity-90">
                 <Plus className="w-4 h-4 mr-2" />
-                Novo Projeto
+                Novo
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingProject ? 'Editar Projeto' : 'Novo Projeto'}</DialogTitle>
               </DialogHeader>
@@ -266,7 +263,7 @@ export default function Projects() {
                   </div>
                 )}
 
-                <div className="flex gap-2 justify-end">
+                <div className="flex gap-2 justify-end pt-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -277,8 +274,8 @@ export default function Projects() {
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit">
-                    {editingProject ? 'Salvar Alterações' : 'Criar Projeto'}
+                  <Button type="submit" className="bg-gradient-primary hover:opacity-90">
+                    {editingProject ? 'Salvar' : 'Criar'}
                   </Button>
                 </div>
               </form>
@@ -287,75 +284,77 @@ export default function Projects() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
+      <main className="px-4 py-6">
         {projects.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground mb-4">Nenhum projeto criado ainda</p>
-              <Button onClick={() => handleOpenDialog()}>
+          <Card className="shadow-card border-dashed border-2 border-border bg-transparent">
+            <CardContent className="py-12 flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+                <FolderOpen className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <h3 className="font-medium text-foreground mb-1">Nenhum projeto ainda</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Crie seu primeiro projeto para começar
+              </p>
+              <Button onClick={() => handleOpenDialog()} className="bg-gradient-primary hover:opacity-90">
                 <Plus className="w-4 h-4 mr-2" />
-                Criar Primeiro Projeto
+                Criar Projeto
               </Button>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4">
+          <div className="space-y-3">
             {projects.map((project) => (
-              <Card key={project.id}>
-                <CardHeader>
+              <Card key={project.id} className="shadow-card border-0">
+                <CardContent className="p-4">
                   <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle>{project.name}</CardTitle>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {project.project_type === 'fauna'
-                          ? `Fauna - ${project.fauna_subtype?.replace('fauna', '')}`
-                          : 'Flora'}
-                      </p>
+                    <div 
+                      className="flex-1 cursor-pointer"
+                      onClick={() => navigate(`/projects/${project.id}/map`)}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
+                          <MapPin className="w-5 h-5 text-primary-foreground" />
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-foreground">{project.name}</h3>
+                          <p className="text-xs text-muted-foreground">
+                            {project.project_type === 'fauna'
+                              ? `Fauna - ${project.fauna_subtype?.replace('fauna', '')}`
+                              : 'Flora'}
+                          </p>
+                        </div>
+                      </div>
+                      {project.description && (
+                        <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
+                          {project.description}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        {project.location && <span>{project.location}</span>}
+                        <span>
+                          {new Date(project.created_at!).toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-1 ml-2">
                       <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => navigate(`/projects/${project.id}/map`)}
-                        title="Ver no Mapa"
-                      >
-                        <MapPin className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
+                        variant="ghost"
                         size="icon"
                         onClick={() => handleOpenDialog(project)}
+                        className="h-8 w-8 text-muted-foreground"
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="icon"
                         onClick={() => handleDelete(project.id)}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
+                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    {project.description && (
-                      <p className="text-muted-foreground">{project.description}</p>
-                    )}
-                    {project.location && (
-                      <p>
-                        <span className="font-medium">Localização:</span> {project.location}
-                      </p>
-                    )}
-                    {project.contract && (
-                      <p>
-                        <span className="font-medium">Contrato:</span> {project.contract}
-                      </p>
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      Criado em {new Date(project.created_at!).toLocaleDateString('pt-BR')}
-                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -363,6 +362,6 @@ export default function Projects() {
           </div>
         )}
       </main>
-    </div>
+    </AppLayout>
   );
 }

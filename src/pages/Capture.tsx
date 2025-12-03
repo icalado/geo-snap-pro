@@ -6,11 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Camera, ArrowLeft, MapPin, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { Camera, ArrowLeft, MapPin, Loader2, Wifi, WifiOff, Mountain, Navigation } from 'lucide-react';
 import { toast } from 'sonner';
 import { savePendingPhoto } from '@/lib/offlineStorage';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
-import TestExifExtraction from '@/components/TestExifExtraction';
 import FieldPhotoUpload from '@/components/FieldPhotoUpload';
 
 export default function Capture() {
@@ -25,7 +24,7 @@ export default function Capture() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [notes, setNotes] = useState('');
-  const [coords, setCoords] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
+  const [coords, setCoords] = useState<{ latitude: number; longitude: number; accuracy: number; altitude?: number } | null>(null);
   const { isOnline, isSyncing, pendingCount, checkPendingCount } = useOfflineSync(user?.id);
 
   useEffect(() => {
@@ -68,6 +67,7 @@ export default function Capture() {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
+          altitude: position.coords.altitude || undefined,
         });
         toast.success('Localização GPS capturada');
       },
@@ -123,7 +123,6 @@ export default function Capture() {
     setIsSaving(true);
 
     try {
-      // Capture image
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
@@ -131,16 +130,13 @@ export default function Capture() {
 
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // Convert to blob
       const blob = await new Promise<Blob | null>((resolve) => {
         canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9);
       });
 
       if (!blob) throw new Error('Failed to create image blob');
 
-      // Check if online
       if (!isOnline) {
-        // Save to IndexedDB for later sync
         await savePendingPhoto({
           id: `${Date.now()}-${Math.random()}`,
           user_id: user!.id,
@@ -149,7 +145,7 @@ export default function Capture() {
           latitude: coords.latitude,
           longitude: coords.longitude,
           accuracy: coords.accuracy,
-          altitude: null,
+          altitude: coords.altitude || null,
           notes: notes || null,
           timestamp: new Date().toISOString(),
           created_at: new Date().toISOString(),
@@ -160,16 +156,13 @@ export default function Capture() {
         await checkPendingCount();
         setIsSaving(false);
         
-        // Redirect to gallery
         setTimeout(() => {
           navigate('/gallery');
         }, 500);
         return;
       }
 
-      // Upload to storage (online mode)
       const fileName = `${user!.id}/${selectedProject}/${Date.now()}.jpg`;
-      console.log('Uploading photo to storage:', fileName);
       
       const { error: uploadError } = await supabase.storage
         .from('photos')
@@ -178,21 +171,12 @@ export default function Capture() {
           upsert: false,
         });
 
-      if (uploadError) {
-        console.error('Storage upload error:', uploadError);
-        throw uploadError;
-      }
-      
-      console.log('Photo uploaded successfully');
+      if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('photos')
         .getPublicUrl(fileName);
-      
-      console.log('Photo public URL:', publicUrl);
 
-      // Save to database
       const photoData = {
         user_id: user!.id,
         project_id: selectedProject,
@@ -200,25 +184,18 @@ export default function Capture() {
         latitude: coords.latitude,
         longitude: coords.longitude,
         accuracy: coords.accuracy,
+        altitude: coords.altitude || null,
         notes: notes || null,
         timestamp: new Date().toISOString(),
       };
       
-      console.log('Saving photo to database:', photoData);
-      
-      const { data: insertedData, error: dbError } = await supabase.from('photos').insert(photoData).select();
+      const { error: dbError } = await supabase.from('photos').insert(photoData).select();
 
-      if (dbError) {
-        console.error('Database insert error:', dbError);
-        throw dbError;
-      }
-      
-      console.log('Photo saved to database:', insertedData);
+      if (dbError) throw dbError;
 
       toast.success('Foto salva com sucesso!');
       setNotes('');
       
-      // Redirect to gallery to see the photo
       setTimeout(() => {
         navigate('/gallery');
       }, 500);
@@ -231,24 +208,25 @@ export default function Capture() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-background">
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/home')}>
+    <div className="min-h-screen bg-gradient-subtle">
+      {/* Header */}
+      <header className="bg-card/80 backdrop-blur-sm sticky top-0 z-10 border-b border-border">
+        <div className="px-4 py-4 flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/home')} className="text-muted-foreground">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">Capturar Foto</h1>
-            <p className="text-xs text-muted-foreground">Com geolocalização automática</p>
+            <h1 className="text-lg font-semibold text-foreground">Nova Captura</h1>
+            <p className="text-xs text-muted-foreground">Foto com geolocalização</p>
           </div>
           <div className="flex items-center gap-2">
             {isOnline ? (
-              <Wifi className="w-5 h-5 text-green-500" />
+              <Wifi className="w-5 h-5 text-primary" />
             ) : (
-              <WifiOff className="w-5 h-5 text-orange-500" />
+              <WifiOff className="w-5 h-5 text-destructive" />
             )}
             {pendingCount > 0 && (
-              <span className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full">
+              <span className="text-xs bg-destructive text-destructive-foreground px-2 py-1 rounded-full">
                 {pendingCount}
               </span>
             )}
@@ -259,12 +237,11 @@ export default function Capture() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6 space-y-6">
+      <main className="px-4 py-6 space-y-4 pb-24">
         {/* Project Selection */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Selecionar Projeto</CardTitle>
-            <CardDescription>Escolha o projeto para esta foto</CardDescription>
+        <Card className="shadow-card border-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Projeto</CardTitle>
           </CardHeader>
           <CardContent>
             <Select value={selectedProject} onValueChange={setSelectedProject}>
@@ -287,58 +264,81 @@ export default function Capture() {
           </CardContent>
         </Card>
 
-        {/* GPS Status */}
-        <Card>
+        {/* GPS Metadata */}
+        <Card className="shadow-card border-0">
           <CardContent className="py-4">
-            <div className="flex items-center gap-2">
-              <MapPin className={coords ? 'w-5 h-5 text-green-500' : 'w-5 h-5 text-muted-foreground'} />
-              <div className="flex-1">
-                {coords ? (
-                  <div className="text-sm">
-                    <p className="font-medium">GPS Ativo</p>
-                    <p className="text-muted-foreground">
-                      Lat: {coords.latitude.toFixed(6)}, Lon: {coords.longitude.toFixed(6)}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Aguardando localização GPS...</p>
-                )}
-              </div>
-              <Button variant="outline" size="sm" onClick={getCurrentLocation}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-foreground">Metadados GPS</span>
+              <Button variant="outline" size="sm" onClick={getCurrentLocation} className="h-8">
+                <Navigation className="w-3 h-3 mr-1" />
                 Atualizar
               </Button>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-2 mb-1">
+                  <MapPin className={`w-4 h-4 ${coords ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className="text-xs text-muted-foreground">Lat/Long</span>
+                </div>
+                {coords ? (
+                  <p className="text-xs font-mono text-foreground">
+                    {coords.latitude.toFixed(6)}<br/>
+                    {coords.longitude.toFixed(6)}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Aguardando...</p>
+                )}
+              </div>
+              
+              <div className="p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-2 mb-1">
+                  <Mountain className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Altitude</span>
+                </div>
+                {coords?.altitude ? (
+                  <p className="text-sm font-mono text-foreground">{coords.altitude.toFixed(1)}m</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">N/A</p>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Camera */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Camera className="w-5 h-5" />
+        <Card className="shadow-card border-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Camera className="w-4 h-4 text-primary" />
               Câmera
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
+            <div className="relative bg-foreground/5 rounded-xl overflow-hidden aspect-[4/3]">
               <video
                 ref={videoRef}
                 className="w-full h-full object-cover"
                 autoPlay
                 playsInline
               />
+              {!isStreaming && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Camera className="w-12 h-12 text-muted-foreground/30" />
+                </div>
+              )}
             </div>
             <canvas ref={canvasRef} className="hidden" />
 
             {!isStreaming ? (
-              <Button onClick={startCamera} className="w-full" size="lg">
+              <Button onClick={startCamera} className="w-full bg-gradient-primary hover:opacity-90" size="lg">
                 <Camera className="w-4 h-4 mr-2" />
                 Iniciar Câmera
               </Button>
             ) : (
               <Button
                 onClick={captureAndSave}
-                className="w-full"
+                className="w-full bg-gradient-primary hover:opacity-90"
                 size="lg"
                 disabled={isSaving || !selectedProject || !coords}
               >
@@ -359,25 +359,24 @@ export default function Capture() {
         </Card>
 
         {/* Notes */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Anotações (Opcional)</CardTitle>
+        <Card className="shadow-card border-0">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Notas de Campo</CardTitle>
+            <CardDescription>Observações sobre esta captura</CardDescription>
           </CardHeader>
           <CardContent>
             <Textarea
               placeholder="Adicione observações sobre esta foto..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={4}
+              rows={3}
+              className="resize-none"
             />
           </CardContent>
         </Card>
 
         {/* Field Photo Upload with OCR */}
         <FieldPhotoUpload projects={projects} onUploadComplete={loadProjects} />
-
-        {/* Test EXIF Extraction */}
-        <TestExifExtraction />
       </main>
     </div>
   );
