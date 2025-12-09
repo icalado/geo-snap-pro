@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Download, Loader2, Image, MapPin } from 'lucide-react';
+import { FileText, Download, Loader2, Image, MapPin, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import jsPDF from 'jspdf';
 import AppLayout from '@/components/layout/AppLayout';
@@ -36,6 +36,7 @@ export default function Reports() {
   const [selectedProject, setSelectedProject] = useState<string>('');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isExportingCSV, setIsExportingCSV] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -70,6 +71,69 @@ export default function Reports() {
       .order('timestamp', { ascending: true });
 
     setPhotos(data || []);
+  };
+
+  const extractFileName = (url: string): string => {
+    try {
+      const urlParts = url.split('/');
+      return urlParts[urlParts.length - 1] || 'sem_nome';
+    } catch {
+      return 'sem_nome';
+    }
+  };
+
+  const exportCSV = async () => {
+    if (!selectedProject || photos.length === 0) {
+      toast.error('Selecione um projeto com fotos para exportar');
+      return;
+    }
+
+    setIsExportingCSV(true);
+
+    try {
+      const project = projects.find((p) => p.id === selectedProject);
+      if (!project) return;
+
+      // CSV Header
+      const headers = ['Nome do Arquivo', 'Data', 'Latitude', 'Longitude', 'Notas', 'Nome do Projeto'];
+      
+      // CSV Rows
+      const rows = photos.map((photo) => {
+        const fileName = extractFileName(photo.image_url);
+        const date = photo.timestamp 
+          ? new Date(photo.timestamp).toLocaleString('pt-BR') 
+          : 'N/A';
+        const latitude = photo.latitude.toFixed(6);
+        const longitude = photo.longitude.toFixed(6);
+        const notes = photo.notes ? `"${photo.notes.replace(/"/g, '""')}"` : '';
+        const projectName = `"${project.name.replace(/"/g, '""')}"`;
+
+        return [fileName, date, latitude, longitude, notes, projectName].join(',');
+      });
+
+      // Combine header and rows
+      const csvContent = [headers.join(','), ...rows].join('\n');
+
+      // Add BOM for Excel UTF-8 compatibility
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `dados-${project.name.replace(/\s+/g, '-')}-${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success('CSV exportado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao exportar CSV: ' + (error as Error).message);
+    } finally {
+      setIsExportingCSV(false);
+    }
   };
 
   const generatePDF = async () => {
@@ -194,7 +258,7 @@ export default function Reports() {
       <header className="bg-card/80 backdrop-blur-sm sticky top-0 z-10 border-b border-border">
         <div className="px-4 py-4">
           <h1 className="text-lg font-semibold text-foreground">Relatórios</h1>
-          <p className="text-xs text-muted-foreground">Gerar relatórios PDF</p>
+          <p className="text-xs text-muted-foreground">Gerar relatórios PDF e exportar CSV</p>
         </div>
       </header>
 
@@ -263,12 +327,49 @@ export default function Reports() {
               </CardContent>
             </Card>
 
-            {/* Generate Report */}
+            {/* Export CSV */}
+            <Card className="shadow-card border-0">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-primary" />
+                  Exportar Dados (CSV)
+                </CardTitle>
+                <CardDescription>
+                  Exportar todas as observações em formato planilha
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  O arquivo CSV incluirá: Nome do Arquivo, Data, Latitude, Longitude, Notas e Nome do Projeto.
+                </p>
+                <Button
+                  onClick={exportCSV}
+                  disabled={isExportingCSV || photos.length === 0}
+                  variant="outline"
+                  className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                  size="lg"
+                >
+                  {isExportingCSV ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Exportando...
+                    </>
+                  ) : (
+                    <>
+                      <FileSpreadsheet className="w-4 h-4 mr-2" />
+                      Exportar CSV
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Generate PDF Report */}
             <Card className="shadow-card border-0">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileText className="w-4 h-4 text-primary" />
-                  Gerar Relatório
+                  Gerar Relatório PDF
                 </CardTitle>
                 <CardDescription>
                   Exportar dados do projeto em formato PDF
