@@ -4,20 +4,26 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MapPin, FolderOpen, LogOut, Leaf, Image, Plus, ChevronRight } from 'lucide-react';
+import { MapPin, FolderOpen, LogOut, Leaf, Image, Plus, ChevronRight, Crown, Settings } from 'lucide-react';
 import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
+
+const ADMIN_EMAIL = 'ilberto.antonio.calado@gmail.com';
 
 const Home = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [projectCount, setProjectCount] = useState(0);
+  const [isPro, setIsPro] = useState(false);
   const [recentProjects, setRecentProjects] = useState<any[]>([]);
 
+  const isAdmin = user?.email === ADMIN_EMAIL;
+
   useEffect(() => {
-    const loadProjects = async () => {
+    const loadData = async () => {
       if (!user) return;
       
+      // Load projects
       const { data, error } = await supabase
         .from('projects')
         .select('*')
@@ -29,9 +35,20 @@ const Home = () => {
         setRecentProjects(data);
         setProjectCount(data.length);
       }
+
+      // Load user PRO status
+      const { data: userData } = await supabase
+        .from('users')
+        .select('is_pro')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (userData) {
+        setIsPro(userData.is_pro || false);
+      }
     };
 
-    loadProjects();
+    loadData();
   }, [user]);
 
   const getUserInitials = () => {
@@ -81,6 +98,11 @@ const Home = () => {
                 {getUserInitials()}
               </AvatarFallback>
             </Avatar>
+            {isAdmin && (
+              <Button variant="ghost" size="icon" onClick={() => navigate('/admin')} className="text-muted-foreground">
+                <Settings className="w-5 h-5" />
+              </Button>
+            )}
             <Button variant="ghost" size="icon" onClick={signOut} className="text-muted-foreground">
               <LogOut className="w-5 h-5" />
             </Button>
@@ -90,11 +112,33 @@ const Home = () => {
 
       {/* Main Content */}
       <main className="px-4 py-6 space-y-6">
+        {/* PRO Banner (only for non-PRO users) */}
+        {!isPro && (
+          <Card 
+            className="bg-gradient-to-r from-amber-500/20 via-amber-600/10 to-background border-amber-500/30 cursor-pointer hover:shadow-soft transition-all"
+            onClick={() => navigate('/subscribe')}
+          >
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                  <Crown className="w-5 h-5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">Seja PRO</p>
+                  <p className="text-xs text-muted-foreground">Desbloqueie recursos ilimitados</p>
+                </div>
+              </div>
+              <ChevronRight className="w-5 h-5 text-amber-500" />
+            </CardContent>
+          </Card>
+        )}
+
         {/* Greeting Section */}
         <div className="space-y-1 animate-fade-in">
           <p className="text-sm text-muted-foreground capitalize">{formatDate()}</p>
           <h1 className="text-2xl font-bold text-foreground">
             {getGreeting()}, {getUserName()}!
+            {isPro && <Crown className="inline w-5 h-5 ml-2 text-amber-500" />}
           </h1>
           <p className="text-muted-foreground">
             {projectCount > 0 
