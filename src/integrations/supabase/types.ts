@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      payment_transactions: {
+        Row: {
+          amount: number
+          completed_at: string | null
+          created_at: string | null
+          currency: string | null
+          id: string
+          payment_method: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          completed_at?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          payment_method?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          completed_at?: string | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string
+          payment_method?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       photo_logs: {
         Row: {
           captured_at: string | null
@@ -160,14 +193,44 @@ export type Database = {
           },
         ]
       }
+      system_logs: {
+        Row: {
+          created_at: string | null
+          details: Json | null
+          id: string
+          level: string
+          message: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          level?: string
+          message: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          level?: string
+          message?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           avatar_url: string | null
           created_at: string | null
           email: string
           id: string
+          is_pro: boolean | null
           name: string | null
+          pro_activated_at: string | null
           subscription_tier: string | null
+          trial_end_date: string | null
           updated_at: string | null
         }
         Insert: {
@@ -175,8 +238,11 @@ export type Database = {
           created_at?: string | null
           email: string
           id: string
+          is_pro?: boolean | null
           name?: string | null
+          pro_activated_at?: string | null
           subscription_tier?: string | null
+          trial_end_date?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -184,8 +250,11 @@ export type Database = {
           created_at?: string | null
           email?: string
           id?: string
+          is_pro?: boolean | null
           name?: string | null
+          pro_activated_at?: string | null
           subscription_tier?: string | null
+          trial_end_date?: string | null
           updated_at?: string | null
         }
         Relationships: []
