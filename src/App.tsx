@@ -13,6 +13,8 @@ import Projects from "./pages/Projects";
 import Gallery from "./pages/Gallery";
 import Reports from "./pages/Reports";
 import ProjectMap from "./pages/ProjectMap";
+import Admin from "./pages/Admin";
+import Subscribe from "./pages/Subscribe";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +74,22 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Reports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <Admin />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/subscribe"
+              element={
+                <ProtectedRoute>
+                  <Subscribe />
                 </ProtectedRoute>
               }
             />
