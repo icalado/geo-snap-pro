@@ -1,11 +1,12 @@
-import { Navigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom'; // Usamos useNavigate para evitar o erro do 404
 import { useAuth } from '@/contexts/AuthContext';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   // Obtém o status de usuário, carregamento E o status de administrador
-  // Este assume que o AuthContext.tsx foi atualizado para retornar 'isAdmin'
+  // Assume que o AuthContext.tsx foi atualizado para retornar 'isAdmin'
   const { user, loading, isAdmin } = useAuth(); 
+  const navigate = useNavigate(); // Hook para redirecionamento imperativo
 
   // 1. Exibir o Skeleton enquanto o status é carregado
   if (loading) {
@@ -22,17 +23,23 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   // 2. CHECK: AUTENTICAÇÃO (Usuário deslogado)
   if (!user) { 
-    // Corrigido: Se NÃO houver usuário, redireciona para login
-    return <Navigate to="/login" replace />;
+    // Redirecionamento imperativo (em vez de retornar <Navigate>)
+    navigate("/login", { replace: true });
+    return null; // Retorna null enquanto o redirecionamento ocorre
   }
   
   // 3. CHECK: AUTORIZAÇÃO (Usuário logado, mas não é Admin)
-  // Este é o ponto que protege a rota de usuários comuns
-  if (user && !isAdmin) {
-    // Redireciona para a página inicial para negar acesso
-    return <Navigate to="/" replace />; 
+  // Esta lógica só é executada se houver um usuário logado.
+  // Assumimos que esta rota (ProtectedRoute) é usada para a área Admin.
+  // Se você usar esta rota para Home/Profile, talvez precise de outro componente.
+
+  // Se for a rota /admin, e o usuário não for admin:
+  if (window.location.pathname.startsWith('/admin') && !isAdmin) {
+    // Redireciona para a Home para negar acesso
+    navigate("/", { replace: true }); 
+    return null; 
   }
 
-  // 4. ACESSO PERMITIDO (Usuário logado E é Admin)
+  // 4. ACESSO PERMITIDO (Usuário logado E passa pelas verificações)
   return <>{children}</>;
 };
