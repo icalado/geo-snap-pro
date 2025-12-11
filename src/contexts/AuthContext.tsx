@@ -22,7 +22,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false); // NOVO: Estado para isAdmin
   const navigate = useNavigate();
 
-  // 1. FUNÇÃO PARA BUSCAR O STATUS DE ADMIN
+  // FUNÇÃO PARA BUSCAR O STATUS DE ADMIN NO BANCO
   const fetchAdminStatus = async (userId: string) => {
     try {
       // Assumindo que a tabela 'profiles' tem uma coluna 'is_admin: boolean'
@@ -34,7 +34,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       if (error) throw error;
 
-      // Atualiza o estado: true se data.is_admin for true, caso contrário false
       setIsAdmin(data?.is_admin || false);
 
     } catch (error) {
@@ -44,7 +43,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
-    let mounted = true; // Para evitar atualizações de estado em componente desmontado
+    let mounted = true;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -54,16 +53,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setLoading(false);
         
         if (event === 'SIGNED_IN' && session) {
-          if (currentUser) fetchAdminStatus(currentUser.id); // Chamada no login
+          if (currentUser) fetchAdminStatus(currentUser.id);
           navigate('/home');
         } else if (event === 'SIGNED_OUT') {
-          setIsAdmin(false); // Limpa o status no logout
+          setIsAdmin(false);
           navigate('/login');
         }
       }
     );
 
-    // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
       
@@ -72,7 +70,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(currentUser);
       
       if (currentUser) {
-        fetchAdminStatus(currentUser.id); // Chamada na sessão existente
+        fetchAdminStatus(currentUser.id);
       } else {
         setIsAdmin(false);
       }
@@ -85,24 +83,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [navigate]);
   
-  // ... (signIn, signUp, signOut functions permanecem as mesmas)
-
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
   };
 
   const signUp = async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-      },
+    const { error } = await supabase.auth.signUp({ 
+      email, 
+      password, 
+      options: { emailRedirectTo: redirectUrl } 
     });
     return { error };
   };
@@ -112,7 +103,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    // 2. NOVO: Exponha o isAdmin no valor do contexto
     <AuthContext.Provider 
       value={{ user, session, loading, isAdmin, signIn, signUp, signOut }}
     >
@@ -120,8 +110,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     </AuthContext.Provider>
   );
 };
-
-// ... (useAuth permanece o mesmo, mas agora ele retorna isAdmin)
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
