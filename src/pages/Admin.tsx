@@ -343,7 +343,7 @@ const Admin = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Data</TableHead>
-                        <TableHead>Nível</Tablehead>
+                        <TableHead>Nível</TableHead>
                         <TableHead>Mensagem</TableHead>
                         <TableHead>Detalhes</TableHead>
                       </TableRow>
@@ -362,4 +362,4 @@ const Admin = () => {
                               {new Date(log.created_at).toLocaleString('pt-BR')}
                             </TableCell>
                             <TableCell>
-                              <Badge
+                              <Badge></Badge>
