@@ -11,8 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { ArrowLeft, Users, FolderOpen, AlertCircle, Crown, Calendar, RefreshCw } from 'lucide-react';
 
-// REMOVIDO: const ADMIN_EMAIL foi removida. A permissão é verificada via AuthContext.
-
 interface UserData {
   id: string;
   email: string;
@@ -32,7 +30,7 @@ interface LogData {
 }
 
 const Admin = () => {
-  const { user } = useAuth(); // Assume-se que o usuário é Admin, pois a ProtectedRoute o permitiu entrar.
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState<UserData[]>([]);
   const [logs, setLogs] = useState<LogData[]>([]);
@@ -42,7 +40,6 @@ const Admin = () => {
   const [newTrialDate, setNewTrialDate] = useState('');
 
   useEffect(() => {
-    // O ProtectedRoute já garante que apenas Admins logados cheguem aqui.
     if (user) { 
       fetchData();
     }
@@ -51,7 +48,6 @@ const Admin = () => {
   const fetchData = async () => {
     setLoadingData(true);
     try {
-      // Fetch all users
       const { data: usersData, error: usersError } = await supabase
         .from('users')
         .select('id, email, name, is_pro, trial_end_date, created_at')
@@ -60,7 +56,6 @@ const Admin = () => {
       if (usersError) throw usersError;
       setUsers(usersData || []);
 
-      // Fetch total projects count
       const { count, error: projectsError } = await supabase
         .from('projects')
         .select('*', { count: 'exact', head: true });
@@ -68,7 +63,6 @@ const Admin = () => {
       if (projectsError) throw projectsError;
       setTotalProjects(count || 0);
 
-      // Fetch recent logs
       const { data: logsData, error: logsError } = await supabase
         .from('system_logs')
         .select('*')
@@ -362,4 +356,31 @@ const Admin = () => {
                               {new Date(log.created_at).toLocaleString('pt-BR')}
                             </TableCell>
                             <TableCell>
-                              <Badge></Badge>
+                              <Badge 
+                                variant={log.level === 'error' ? 'destructive' : log.level === 'warn' ? 'secondary' : 'outline'}
+                              >
+                                {log.level}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="max-w-xs truncate">
+                              {log.message}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
+                              {log.details ? JSON.stringify(log.details) : '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+};
+
+export default Admin; 
