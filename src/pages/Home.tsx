@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MapPin, FolderOpen, LogOut, Leaf, Image, Plus, ChevronRight, Crown, Settings } from 'lucide-react';
+import { MapPin, FolderOpen, LogOut, Leaf, Image, Plus, ChevronRight, Crown, Settings, Route } from 'lucide-react';
 import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -149,18 +149,31 @@ const Home = () => {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Card 
             className="shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.98] border-0"
             onClick={() => navigate('/gallery')}
           >
-            <CardContent className="p-4 flex items-center gap-3">
+            <CardContent className="p-4 flex flex-col items-center gap-2">
               <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
                 <Image className="w-5 h-5 text-primary" />
               </div>
-              <div>
-                <p className="font-medium text-foreground">Galeria</p>
-                <p className="text-xs text-muted-foreground">Ver fotos</p>
+              <div className="text-center">
+                <p className="font-medium text-foreground text-sm">Galeria</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.98] border-0"
+            onClick={() => navigate('/tracker')}
+          >
+            <CardContent className="p-4 flex flex-col items-center gap-2">
+              <div className="w-11 h-11 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                <Route className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div className="text-center">
+                <p className="font-medium text-foreground text-sm">Tracker</p>
               </div>
             </CardContent>
           </Card>
@@ -169,13 +182,12 @@ const Home = () => {
             className="shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.98] border-0"
             onClick={() => navigate('/projects')}
           >
-            <CardContent className="p-4 flex items-center gap-3">
+            <CardContent className="p-4 flex flex-col items-center gap-2">
               <div className="w-11 h-11 rounded-xl bg-accent/10 flex items-center justify-center">
                 <FolderOpen className="w-5 h-5 text-accent" />
               </div>
-              <div>
-                <p className="font-medium text-foreground">Projetos</p>
-                <p className="text-xs text-muted-foreground">Gerenciar</p>
+              <div className="text-center">
+                <p className="font-medium text-foreground text-sm">Projetos</p>
               </div>
             </CardContent>
           </Card>
