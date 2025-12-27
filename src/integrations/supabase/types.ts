@@ -220,6 +220,62 @@ export type Database = {
         }
         Relationships: []
       }
+      track_logs: {
+        Row: {
+          created_at: string | null
+          distance_meters: number | null
+          end_time: string | null
+          id: string
+          photo_count: number | null
+          photos: Json
+          point_count: number | null
+          points: Json
+          project_id: string | null
+          start_time: string
+          track_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          distance_meters?: number | null
+          end_time?: string | null
+          id?: string
+          photo_count?: number | null
+          photos?: Json
+          point_count?: number | null
+          points?: Json
+          project_id?: string | null
+          start_time: string
+          track_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          distance_meters?: number | null
+          end_time?: string | null
+          id?: string
+          photo_count?: number | null
+          photos?: Json
+          point_count?: number | null
+          points?: Json
+          project_id?: string | null
+          start_time?: string
+          track_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "track_logs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           avatar_url: string | null

@@ -30,19 +30,21 @@ export default function Tracker() {
   const [isSaving, setIsSaving] = useState(false);
   const [notes, setNotes] = useState('');
   
-  const { isOnline, pendingCount, isSyncing } = useOfflineSync(user?.id);
+  const { isOnline, pendingCount, isSyncing: isOfflineSyncing } = useOfflineSync(user?.id);
   const {
     isTracking,
     currentPosition,
     trackLog,
     error: trackingError,
     hasRecoveredSession,
+    isSyncing: isCloudSyncing,
     startTracking,
     stopTracking,
     addPhotoMarker,
     clearTrackLog,
     exportTrack,
-  } = useGpsTracking();
+    forceSync,
+  } = useGpsTracking(user?.id, selectedProject || undefined);
 
   useEffect(() => {
     loadProjects();
@@ -186,7 +188,7 @@ export default function Tracker() {
       toast.error('Selecione um projeto antes de iniciar o rastreamento');
       return;
     }
-    startTracking();
+    startTracking(selectedProject);
     toast.success('Rastreamento GPS iniciado');
   };
 
@@ -194,6 +196,8 @@ export default function Tracker() {
     stopTracking();
     toast.success('Rastreamento GPS finalizado');
   };
+
+  const isSyncing = isOfflineSyncing || isCloudSyncing;
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
