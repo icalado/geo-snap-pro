@@ -1,7 +1,26 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Map as MapIcon, Navigation, Play, Square, Trash2, Route } from 'lucide-react';
+import { 
+  Navigation, Play, Square, Trash2, Route, Download, FileJson, 
+  MapPin, AlertTriangle, CheckCircle
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { TrackLog, TrackPoint, PhotoMarker } from '@/hooks/useGpsTracking';
@@ -41,7 +60,9 @@ interface TrackingMapProps {
   onStartTracking: () => void;
   onStopTracking: () => void;
   onClearTrack: () => void;
+  onExportTrack: (format: 'geojson' | 'kml') => void;
   error: string | null;
+  hasRecoveredSession?: boolean;
 }
 
 export default function TrackingMap({
@@ -51,13 +72,16 @@ export default function TrackingMap({
   onStartTracking,
   onStopTracking,
   onClearTrack,
+  onExportTrack,
   error,
+  hasRecoveredSession,
 }: TrackingMapProps) {
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const polylineRef = useRef<L.Polyline | null>(null);
   const currentMarkerRef = useRef<L.Marker | null>(null);
   const photoMarkersRef = useRef<L.Marker[]>([]);
+  const [showClearDialog, setShowClearDialog] = useState(false);
 
   // Initialize map
   useEffect(() => {
@@ -215,105 +239,198 @@ export default function TrackingMap({
     };
   }, [trackLog]);
 
+  const handleFinishAndClear = () => {
+    setShowClearDialog(true);
+  };
+
+  const confirmClear = (shouldExport: boolean) => {
+    if (shouldExport && trackLog) {
+      onExportTrack('geojson');
+    }
+    onClearTrack();
+    setShowClearDialog(false);
+    toast.success('Sessão finalizada');
+  };
+
   return (
-    <Card className="shadow-elevation">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Route className="w-5 h-5 text-primary" />
-              GPS Tracker Log
-            </CardTitle>
-            <CardDescription>
-              {isTracking ? 'Rastreamento ativo' : 'Clique para iniciar o rastreamento'}
-            </CardDescription>
+    <>
+      <Card className="shadow-elevation">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Route className="w-5 h-5 text-primary" />
+                GPS Tracker Log
+              </CardTitle>
+              <CardDescription>
+                {hasRecoveredSession ? (
+                  <span className="flex items-center gap-1 text-amber-600">
+                    <AlertTriangle className="w-3 h-3" />
+                    Sessão recuperada - continue ou exporte
+                  </span>
+                ) : isTracking ? (
+                  'Rastreamento ativo'
+                ) : (
+                  'Clique para iniciar o rastreamento'
+                )}
+              </CardDescription>
+            </div>
+            {isTracking && (
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-destructive rounded-full animate-pulse" />
+                <span className="text-xs text-destructive font-medium">REC</span>
+              </div>
+            )}
           </div>
-          {isTracking && (
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-destructive rounded-full animate-pulse" />
-              <span className="text-xs text-destructive font-medium">REC</span>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Error display */}
+          {error && (
+            <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg">
+              {error}
             </div>
           )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Error display */}
-        {error && (
-          <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg">
-            {error}
-          </div>
-        )}
 
-        {/* Track stats */}
-        {trackLog && (
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="p-2 bg-muted/50 rounded-lg">
-              <p className="text-xs text-muted-foreground">Distância</p>
-              <p className="text-sm font-semibold">
-                {trackStats.distance >= 1000
-                  ? `${(trackStats.distance / 1000).toFixed(2)} km`
-                  : `${trackStats.distance.toFixed(0)} m`}
-              </p>
+          {/* Session recovery notice */}
+          {hasRecoveredSession && trackLog && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-sm rounded-lg flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium">Sessão anterior detectada</p>
+                <p className="text-xs mt-1">
+                  {trackLog.points.length} pontos GPS e {trackLog.photos.length} fotos recuperadas.
+                  Continue o rastreamento ou exporte os dados.
+                </p>
+              </div>
             </div>
-            <div className="p-2 bg-muted/50 rounded-lg">
-              <p className="text-xs text-muted-foreground">Pontos</p>
-              <p className="text-sm font-semibold">{trackStats.pointCount}</p>
-            </div>
-            <div className="p-2 bg-muted/50 rounded-lg">
-              <p className="text-xs text-muted-foreground">Fotos</p>
-              <p className="text-sm font-semibold">{trackLog.photos.length}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Map container */}
-        <div 
-          ref={mapContainerRef} 
-          className="w-full h-[300px] rounded-lg border overflow-hidden"
-        />
-        
-        {/* Control buttons */}
-        <div className="flex gap-2">
-          {!isTracking ? (
-            <Button 
-              onClick={onStartTracking} 
-              className="flex-1 bg-primary hover:bg-primary/90"
-            >
-              <Play className="w-4 h-4 mr-2" />
-              Iniciar Rastreamento
-            </Button>
-          ) : (
-            <Button 
-              onClick={onStopTracking} 
-              variant="destructive"
-              className="flex-1"
-            >
-              <Square className="w-4 h-4 mr-2" />
-              Parar
-            </Button>
           )}
+
+          {/* Track stats */}
+          {trackLog && (
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="p-2 bg-muted/50 rounded-lg">
+                <p className="text-xs text-muted-foreground">Distância</p>
+                <p className="text-sm font-semibold">
+                  {trackStats.distance >= 1000
+                    ? `${(trackStats.distance / 1000).toFixed(2)} km`
+                    : `${trackStats.distance.toFixed(0)} m`}
+                </p>
+              </div>
+              <div className="p-2 bg-muted/50 rounded-lg">
+                <p className="text-xs text-muted-foreground">Pontos</p>
+                <p className="text-sm font-semibold">{trackStats.pointCount}</p>
+              </div>
+              <div className="p-2 bg-muted/50 rounded-lg">
+                <p className="text-xs text-muted-foreground">Fotos</p>
+                <p className="text-sm font-semibold">{trackLog.photos.length}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Map container */}
+          <div 
+            ref={mapContainerRef} 
+            className="w-full h-[300px] rounded-lg border overflow-hidden"
+          />
           
-          <Button 
-            onClick={centerOnPosition} 
-            variant="outline" 
-            size="icon"
-            disabled={!currentPosition}
-          >
-            <Navigation className="w-4 h-4" />
-          </Button>
-
-          {trackLog && !isTracking && (
+          {/* Control buttons */}
+          <div className="flex gap-2">
+            {!isTracking ? (
+              <Button 
+                onClick={onStartTracking} 
+                className="flex-1 bg-primary hover:bg-primary/90"
+              >
+                <Play className="w-4 h-4 mr-2" />
+                {hasRecoveredSession ? 'Continuar' : 'Iniciar'}
+              </Button>
+            ) : (
+              <Button 
+                onClick={onStopTracking} 
+                variant="destructive"
+                className="flex-1"
+              >
+                <Square className="w-4 h-4 mr-2" />
+                Parar
+              </Button>
+            )}
+            
             <Button 
-              onClick={onClearTrack} 
+              onClick={centerOnPosition} 
               variant="outline" 
               size="icon"
+              disabled={!currentPosition}
             >
-              <Trash2 className="w-4 h-4" />
+              <Navigation className="w-4 h-4" />
             </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+
+            {/* Export dropdown */}
+            {trackLog && trackLog.points.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onExportTrack('geojson')}>
+                    <FileJson className="w-4 h-4 mr-2" />
+                    Exportar GeoJSON
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onExportTrack('kml')}>
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Exportar KML
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
+            {/* Finish & Clear button */}
+            {trackLog && !isTracking && (
+              <Button 
+                onClick={handleFinishAndClear} 
+                variant="outline" 
+                size="icon"
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Clear confirmation dialog */}
+      <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Finalizar e Limpar Sessão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você deseja exportar os dados antes de limpar? Esta ação não pode ser desfeita.
+              {trackLog && (
+                <span className="block mt-2 text-foreground">
+                  Dados atuais: {trackLog.points.length} pontos GPS e {trackLog.photos.length} fotos.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => confirmClear(true)}
+              className="bg-primary hover:bg-primary/90"
+            >
+              Exportar e Limpar
+            </AlertDialogAction>
+            <AlertDialogAction 
+              onClick={() => confirmClear(false)}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Limpar sem Exportar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 
