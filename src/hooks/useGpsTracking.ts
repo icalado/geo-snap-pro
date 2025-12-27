@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface TrackPoint {
   lat: number;
@@ -24,6 +25,8 @@ export interface TrackLog {
   endTime?: number;
   points: TrackPoint[];
   photos: PhotoMarker[];
+  cloudId?: string; // Supabase record ID
+  projectId?: string;
 }
 
 const STORAGE_KEY = 'gps-tracker-session';
@@ -54,11 +57,31 @@ function saveSession(trackLog: TrackLog | null): void {
   }
 }
 
+// Calculate distance between all points
+function calculateTotalDistance(points: TrackPoint[]): number {
+  if (points.length < 2) return 0;
+  
+  let distance = 0;
+  for (let i = 1; i < points.length; i++) {
+    const p1 = points[i - 1];
+    const p2 = points[i];
+    const R = 6371e3;
+    const φ1 = (p1.lat * Math.PI) / 180;
+    const φ2 = (p2.lat * Math.PI) / 180;
+    const Δφ = ((p2.lat - p1.lat) * Math.PI) / 180;
+    const Δλ = ((p2.lng - p1.lng) * Math.PI) / 180;
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    distance += R * c;
+  }
+  return distance;
+}
+
 // Export track as GeoJSON
 export function exportToGeoJSON(trackLog: TrackLog): string {
   const features: GeoJSON.Feature[] = [];
 
-  // Add track line
   if (trackLog.points.length > 0) {
     features.push({
       type: 'Feature',
@@ -76,7 +99,6 @@ export function exportToGeoJSON(trackLog: TrackLog): string {
     });
   }
 
-  // Add photo markers
   trackLog.photos.forEach((photo) => {
     features.push({
       type: 'Feature',
@@ -125,7 +147,6 @@ export function exportToKML(trackLog: TrackLog): string {
       </IconStyle>
     </Style>`;
 
-  // Add track path
   if (trackLog.points.length > 0) {
     const coordinates = trackLog.points
       .map((p) => `${p.lng},${p.lat},${p.altitude ?? 0}`)
@@ -145,7 +166,6 @@ export function exportToKML(trackLog: TrackLog): string {
     </Placemark>`;
   }
 
-  // Add photo markers
   trackLog.photos.forEach((photo, index) => {
     kml += `
     <Placemark>
@@ -169,21 +189,90 @@ export function exportToKML(trackLog: TrackLog): string {
   return kml;
 }
 
-export function useGpsTracking() {
+export function useGpsTracking(userId?: string, projectId?: string) {
   const [isTracking, setIsTracking] = useState(false);
   const [currentPosition, setCurrentPosition] = useState<TrackPoint | null>(null);
   const [trackLog, setTrackLog] = useState<TrackLog | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasRecoveredSession, setHasRecoveredSession] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   const watchIdRef = useRef<number | null>(null);
   const trackLogRef = useRef<TrackLog | null>(null);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Keep ref in sync with state for callbacks
   useEffect(() => {
     trackLogRef.current = trackLog;
   }, [trackLog]);
+
+  // Sync track log to Supabase
+  const syncToCloud = useCallback(async (track: TrackLog) => {
+    if (!userId) return;
+
+    setIsSyncing(true);
+    try {
+      const distance = calculateTotalDistance(track.points);
+      
+      // Convert to JSON-compatible format for Supabase
+      const trackData = {
+        user_id: userId,
+        project_id: track.projectId || projectId || null,
+        track_id: track.id,
+        start_time: new Date(track.startTime).toISOString(),
+        end_time: track.endTime ? new Date(track.endTime).toISOString() : null,
+        points: JSON.parse(JSON.stringify(track.points)),
+        photos: JSON.parse(JSON.stringify(track.photos)),
+        distance_meters: distance,
+        point_count: track.points.length,
+        photo_count: track.photos.length,
+      };
+
+      if (track.cloudId) {
+        // Update existing record
+        const { error } = await supabase
+          .from('track_logs')
+          .update(trackData)
+          .eq('id', track.cloudId);
+
+        if (error) throw error;
+      } else {
+        // Insert new record
+        const { data, error } = await supabase
+          .from('track_logs')
+          .insert(trackData)
+          .select('id')
+          .single();
+
+        if (error) throw error;
+
+        // Update local track with cloud ID
+        if (data) {
+          const updatedTrack = { ...track, cloudId: data.id };
+          setTrackLog(updatedTrack);
+          trackLogRef.current = updatedTrack;
+          saveSession(updatedTrack);
+        }
+      }
+
+      console.log('Track synced to cloud');
+    } catch (err) {
+      console.error('Error syncing to cloud:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [userId, projectId]);
+
+  // Debounced sync
+  const debouncedSync = useCallback((track: TrackLog) => {
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+    syncTimeoutRef.current = setTimeout(() => {
+      syncToCloud(track);
+    }, 5000); // Sync every 5 seconds max
+  }, [syncToCloud]);
 
   // Auto-recover session on mount
   useEffect(() => {
@@ -239,7 +328,16 @@ export function useGpsTracking() {
     };
   }, [isTracking, requestWakeLock]);
 
-  const startTracking = useCallback(async () => {
+  // Cleanup sync timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const startTracking = useCallback(async (selectedProjectId?: string) => {
     if (!navigator.geolocation) {
       setError('Geolocalização não suportada neste dispositivo');
       return;
@@ -255,7 +353,14 @@ export function useGpsTracking() {
         startTime: Date.now(),
         points: [],
         photos: [],
+        projectId: selectedProjectId || projectId,
       };
+      setTrackLog(activeTrackLog);
+      trackLogRef.current = activeTrackLog;
+      saveSession(activeTrackLog);
+    } else if (selectedProjectId) {
+      // Update project ID if provided
+      activeTrackLog = { ...activeTrackLog, projectId: selectedProjectId };
       setTrackLog(activeTrackLog);
       trackLogRef.current = activeTrackLog;
       saveSession(activeTrackLog);
@@ -283,8 +388,13 @@ export function useGpsTracking() {
             points: [...prev.points, point],
           };
           trackLogRef.current = updated;
-          // Save immediately to localStorage
           saveSession(updated);
+          
+          // Trigger debounced cloud sync
+          if (userId) {
+            debouncedSync(updated);
+          }
+          
           return updated;
         });
       },
@@ -300,7 +410,7 @@ export function useGpsTracking() {
 
     setIsTracking(true);
     setHasRecoveredSession(false);
-  }, [requestWakeLock]);
+  }, [requestWakeLock, userId, projectId, debouncedSync]);
 
   const stopTracking = useCallback(async () => {
     if (watchIdRef.current !== null) {
@@ -311,6 +421,12 @@ export function useGpsTracking() {
     // Release wake lock
     await releaseWakeLock();
 
+    // Clear pending sync timeout
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = null;
+    }
+
     setTrackLog((prev) => {
       if (!prev) return prev;
       const updated = {
@@ -318,11 +434,17 @@ export function useGpsTracking() {
         endTime: Date.now(),
       };
       saveSession(updated);
+      
+      // Final sync to cloud
+      if (userId) {
+        syncToCloud(updated);
+      }
+      
       return updated;
     });
 
     setIsTracking(false);
-  }, [releaseWakeLock]);
+  }, [releaseWakeLock, userId, syncToCloud]);
 
   const addPhotoMarker = useCallback((photo: Omit<PhotoMarker, 'id'>) => {
     const newMarker: PhotoMarker = {
@@ -336,13 +458,18 @@ export function useGpsTracking() {
         ...prev,
         photos: [...prev.photos, newMarker],
       };
-      // Save immediately to localStorage
       saveSession(updated);
+      
+      // Sync photo to cloud immediately
+      if (userId) {
+        syncToCloud(updated);
+      }
+      
       return updated;
     });
 
     return newMarker;
-  }, []);
+  }, [userId, syncToCloud]);
 
   const clearTrackLog = useCallback(async () => {
     if (isTracking) {
@@ -383,17 +510,27 @@ export function useGpsTracking() {
     return trackLog.points.map((point) => [point.lat, point.lng]);
   }, [trackLog]);
 
+  // Force sync to cloud
+  const forceSync = useCallback(async () => {
+    if (trackLog && userId) {
+      await syncToCloud(trackLog);
+      toast.success('Dados sincronizados com a nuvem');
+    }
+  }, [trackLog, userId, syncToCloud]);
+
   return {
     isTracking,
     currentPosition,
     trackLog,
     error,
     hasRecoveredSession,
+    isSyncing,
     startTracking,
     stopTracking,
     addPhotoMarker,
     clearTrackLog,
     exportTrack,
     getCoordinatesArray,
+    forceSync,
   };
 }
