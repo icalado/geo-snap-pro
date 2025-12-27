@@ -36,10 +36,12 @@ export default function Tracker() {
     currentPosition,
     trackLog,
     error: trackingError,
+    hasRecoveredSession,
     startTracking,
     stopTracking,
     addPhotoMarker,
     clearTrackLog,
+    exportTrack,
   } = useGpsTracking();
 
   useEffect(() => {
@@ -262,7 +264,9 @@ export default function Tracker() {
           onStartTracking={handleStartTracking}
           onStopTracking={handleStopTracking}
           onClearTrack={clearTrackLog}
+          onExportTrack={exportTrack}
           error={trackingError}
+          hasRecoveredSession={hasRecoveredSession}
         />
 
         {/* Camera for Photo Capture */}
