@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { MapPin, FolderOpen, LogOut, Leaf, Image, Plus, ChevronRight, Crown, Settings, Route } from 'lucide-react';
+import { MapPin, FolderOpen, LogOut, Image, ChevronRight, Crown, Settings, Trees } from 'lucide-react';
 import AppLayout from '@/components/layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -23,7 +23,6 @@ const Home = () => {
     const loadData = async () => {
       if (!user) return;
       
-      // Load projects
       const { data, error } = await supabase
         .from('projects')
         .select('*')
@@ -36,7 +35,6 @@ const Home = () => {
         setProjectCount(data.length);
       }
 
-      // Load user PRO status
       const { data: userData } = await supabase
         .from('users')
         .select('is_pro')
@@ -68,141 +66,115 @@ const Home = () => {
     return 'Boa noite';
   };
 
-  const formatDate = () => {
-    return new Date().toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long'
-    });
-  };
-
   const getUserName = () => {
     return user?.user_metadata?.name?.split(' ')[0] || 'Pesquisador';
   };
 
   return (
     <AppLayout>
-      {/* Header */}
-      <header className="bg-card/80 backdrop-blur-sm sticky top-0 z-10 border-b border-border">
-        <div className="px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <Leaf className="w-5 h-5 text-primary-foreground" />
+      <main className="px-5 pt-8 pb-6 space-y-8 min-h-screen">
+        {/* Header - Simple greeting */}
+        <header className="space-y-1 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-primary/20 flex items-center justify-center shadow-glow">
+                <Trees className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-foreground tracking-tight">Geo Snap Pro</h1>
+                <p className="text-sm text-muted-foreground">
+                  {getGreeting()}, {getUserName()}!
+                  {isPro && <Crown className="inline w-4 h-4 ml-1.5 text-amber-400" />}
+                </p>
+              </div>
             </div>
-            <span className="text-lg font-semibold text-foreground">BioGeo</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <Avatar className="w-9 h-9 ring-2 ring-primary/20">
-              <AvatarImage src={user?.user_metadata?.avatar_url} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                {getUserInitials()}
-              </AvatarFallback>
-            </Avatar>
-            {isAdmin && (
-              <Button variant="ghost" size="icon" onClick={() => navigate('/admin')} className="text-muted-foreground">
-                <Settings className="w-5 h-5" />
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => navigate('/admin')} 
+                  className="text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl"
+                >
+                  <Settings className="w-5 h-5" />
+                </Button>
+              )}
+              <Avatar className="w-10 h-10 ring-2 ring-primary/30 rounded-xl">
+                <AvatarImage src={user?.user_metadata?.avatar_url} className="rounded-xl" />
+                <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold rounded-xl">
+                  {getUserInitials()}
+                </AvatarFallback>
+              </Avatar>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={signOut} 
+                className="text-muted-foreground hover:text-foreground hover:bg-secondary rounded-xl"
+              >
+                <LogOut className="w-5 h-5" />
               </Button>
-            )}
-            <Button variant="ghost" size="icon" onClick={signOut} className="text-muted-foreground">
-              <LogOut className="w-5 h-5" />
-            </Button>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Content */}
-      <main className="px-4 py-6 space-y-6">
-        {/* PRO Banner (only for non-PRO users) */}
+        {/* PRO Banner */}
         {!isPro && (
           <Card 
-            className="bg-gradient-to-r from-amber-500/20 via-amber-600/10 to-background border-amber-500/30 cursor-pointer hover:shadow-soft transition-all"
+            className="bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-transparent border-amber-500/20 cursor-pointer hover:shadow-soft transition-all rounded-2xl"
             onClick={() => navigate('/subscribe')}
           >
             <CardContent className="p-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center">
-                  <Crown className="w-5 h-5 text-amber-500" />
+                  <Crown className="w-5 h-5 text-amber-400" />
                 </div>
                 <div>
-                  <p className="font-medium text-foreground">Seja PRO</p>
+                  <p className="font-semibold text-foreground">Seja PRO</p>
                   <p className="text-xs text-muted-foreground">Desbloqueie recursos ilimitados</p>
                 </div>
               </div>
-              <ChevronRight className="w-5 h-5 text-amber-500" />
+              <ChevronRight className="w-5 h-5 text-amber-400" />
             </CardContent>
           </Card>
         )}
 
-        {/* Greeting Section */}
-        <div className="space-y-1 animate-fade-in">
-          <p className="text-sm text-muted-foreground capitalize">{formatDate()}</p>
-          <h1 className="text-2xl font-bold text-foreground">
-            {getGreeting()}, {getUserName()}!
-            {isPro && <Crown className="inline w-5 h-5 ml-2 text-amber-500" />}
-          </h1>
-          <p className="text-muted-foreground">
-            {projectCount > 0 
-              ? `${projectCount} projeto${projectCount > 1 ? 's' : ''} ativo${projectCount > 1 ? 's' : ''}`
-              : 'Comece seu primeiro projeto de campo'
-            }
-          </p>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-3">
+        {/* Quick Actions Grid - Two large square cards */}
+        <div className="grid grid-cols-2 gap-4">
           <Card 
-            className="shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.98] border-0"
+            className="aspect-square shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.98] border-0 bg-secondary/50 hover:bg-secondary/70 rounded-3xl"
             onClick={() => navigate('/gallery')}
           >
-            <CardContent className="p-4 flex flex-col items-center gap-2">
-              <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Image className="w-5 h-5 text-primary" />
+            <CardContent className="p-0 h-full flex flex-col items-center justify-center gap-3">
+              <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center">
+                <Image className="w-8 h-8 text-primary" />
               </div>
-              <div className="text-center">
-                <p className="font-medium text-foreground text-sm">Galeria</p>
-              </div>
+              <p className="font-semibold text-foreground text-lg">Galeria</p>
             </CardContent>
           </Card>
 
           <Card 
-            className="shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.98] border-0"
-            onClick={() => navigate('/tracker')}
-          >
-            <CardContent className="p-4 flex flex-col items-center gap-2">
-              <div className="w-11 h-11 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                <Route className="w-5 h-5 text-emerald-600" />
-              </div>
-              <div className="text-center">
-                <p className="font-medium text-foreground text-sm">Tracker</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card 
-            className="shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.98] border-0"
+            className="aspect-square shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.98] border-0 bg-secondary/50 hover:bg-secondary/70 rounded-3xl"
             onClick={() => navigate('/projects')}
           >
-            <CardContent className="p-4 flex flex-col items-center gap-2">
-              <div className="w-11 h-11 rounded-xl bg-accent/10 flex items-center justify-center">
-                <FolderOpen className="w-5 h-5 text-accent" />
+            <CardContent className="p-0 h-full flex flex-col items-center justify-center gap-3">
+              <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center">
+                <FolderOpen className="w-8 h-8 text-primary" />
               </div>
-              <div className="text-center">
-                <p className="font-medium text-foreground text-sm">Projetos</p>
-              </div>
+              <p className="font-semibold text-foreground text-lg">Projetos</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Recent Projects Section */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-foreground">Projetos Recentes</h2>
+            <h2 className="text-lg font-bold text-foreground">Projetos Recentes</h2>
             {recentProjects.length > 0 && (
               <Button 
                 variant="ghost" 
                 size="sm" 
                 onClick={() => navigate('/projects')}
-                className="text-primary hover:text-primary/80 -mr-2"
+                className="text-primary hover:text-primary/80 hover:bg-primary/10 -mr-2 rounded-xl"
               >
                 Ver todos
                 <ChevronRight className="w-4 h-4 ml-1" />
@@ -211,45 +183,43 @@ const Home = () => {
           </div>
 
           {recentProjects.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {recentProjects.map((project) => (
                 <Card 
                   key={project.id} 
-                  className="shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.99] border-0"
+                  className="shadow-card hover:shadow-soft transition-all cursor-pointer active:scale-[0.99] border-0 bg-card/80 rounded-2xl overflow-hidden"
                   onClick={() => navigate(`/projects/${project.id}/map`)}
                 >
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
-                        <MapPin className="w-5 h-5 text-primary-foreground" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-foreground">{project.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {project.location || 'Sem localização'}
-                        </p>
-                      </div>
+                  <CardContent className="p-4 flex items-center gap-4">
+                    {/* Thumbnail placeholder */}
+                    <div className="w-14 h-14 rounded-xl bg-gradient-primary flex-shrink-0 flex items-center justify-center">
+                      <MapPin className="w-6 h-6 text-primary-foreground" />
                     </div>
-                    <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground truncate">{project.name}</p>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {project.location || 'Sem localização definida'}
+                      </p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                   </CardContent>
                 </Card>
               ))}
             </div>
           ) : (
-            <Card className="shadow-card border-dashed border-2 border-border bg-transparent">
-              <CardContent className="py-10 flex flex-col items-center text-center">
+            <Card className="border-dashed border-2 border-border bg-transparent rounded-2xl">
+              <CardContent className="py-12 flex flex-col items-center text-center">
                 <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
                   <FolderOpen className="w-8 h-8 text-muted-foreground" />
                 </div>
-                <h3 className="font-medium text-foreground mb-1">Nenhum projeto ainda</h3>
-                <p className="text-sm text-muted-foreground mb-4">
+                <h3 className="font-semibold text-foreground mb-1">Nenhum projeto ainda</h3>
+                <p className="text-sm text-muted-foreground mb-5 max-w-[200px]">
                   Crie seu primeiro projeto para organizar suas fotos de campo
                 </p>
                 <Button 
                   onClick={() => navigate('/projects')}
-                  className="bg-gradient-primary hover:opacity-90"
+                  className="bg-gradient-primary hover:opacity-90 rounded-xl px-6"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
                   Criar Projeto
                 </Button>
               </CardContent>
