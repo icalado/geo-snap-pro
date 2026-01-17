@@ -1,10 +1,10 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Map, FolderOpen, FileText, Camera } from 'lucide-react';
+import { Home, Route, FolderOpen, FileText, Camera } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { icon: Home, label: 'Home', path: '/home' },
-  { icon: Map, label: 'Mapa', path: '/gallery' },
+  { icon: Route, label: 'Tracker', path: '/tracker' },
   { icon: null, label: '', path: '' }, // Placeholder for FAB
   { icon: FolderOpen, label: 'Projetos', path: '/projects' },
   { icon: FileText, label: 'Relatórios', path: '/reports' },
